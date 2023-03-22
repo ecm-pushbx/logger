@@ -22,8 +22,8 @@ goto end
 
 :buildlist
 
-rem set EXT=SYS
+CALL %0 LOG
+set EXT=SYS
 CALL %0 LOGGER
-
 
 :end
