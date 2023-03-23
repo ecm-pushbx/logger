@@ -57,6 +57,8 @@ struc tREQUEST
 	.Drive:		resb 1		; +22
 endstruc
 
+; -----------------------------------------------------------------------------
+
 Header:
 	ChainNext: 	dd -1			; pointer to next device driver
 	Attributes:	dw 0x8000		; character device
@@ -64,7 +66,21 @@ Header:
 	Entry:		dw Driver.Routine	; driver interrupt call
 	Name:		DeviceDriverID		; 8 character driver name
 
+; -----------------------------------------------------------------------------
+; In addition to the DeviceDriverID, these pointers are tested by LOG.COM to
+; verify it is actually a running driver and not just as copy of the program
+; residing in memory.
+
 Request:		dd -1			; Pointer to tREQUEST block
+Interface:		dw Driver.Interface,-1	; non-DOS interface to driver
+
+; -----------------------------------------------------------------------------
+
+XMSDriver:		dd -1			; Pointer to XMS driver
+XMSSize:		dw 256			; Size in KB to allocate
+XMSHandle:		dw -1
+
+; -----------------------------------------------------------------------------
 
 Driver.Strategy:				; set request block pointer
 	mov		[cs:Request], bx
@@ -81,15 +97,10 @@ Driver.Routine:					; driver function dispatcher
 	mov		al, [es:di+tREQUEST.Function]
 	test		al, al			; test command 0, initialize
 	jz		Initialize
-	; cmp		al, 0x15
-	; jbe		Driver.Done
-	mov		al, 0x03		; error code invalid function
-Driver.Error:
-	mov		ah, 0x81		; set error & done bits
-	jmp		Driver.Return
-Driver.Done:
-	mov		ax, 0x0100		; done bit, no error, no code
 
+Driver.Error:
+	mov		ax, 0x8103		; set error & done bits, and
+						; error code 3, unknown command
 Driver.Return:
 	mov		[es:di+tREQUEST.Status], ax
 	pop		es
@@ -98,30 +109,61 @@ Driver.Return:
 	popf
 	retf
 
+; -----------------------------------------------------------------------------
+Driver.Interface:
+	retf
+
+; -----------------------------------------------------------------------------
 ; Released after Initialization
+; -----------------------------------------------------------------------------
 
 Initialize:
 	; set pointer to first byte above program for DOS to free after init
-	mov		[es:di+tREQUEST.Address], word Initialize
 	mov		[es:di+tREQUEST.Address+2], cs
+	mov		[es:di+tREQUEST.Address], word Initialize
 
 	; save remaining general registers not preserved in function dispatcher
 	push		ds
 	push		si
 	push		dx
 	push		cx
+	push		bx
 
 	push		cs
 	pop		ds	; mov ds, cs
-
-	; debugging - print driver segment
-	; WordAsHex	ds
-	; ByteAsChar	0x0d,0x0a
 
 	; print driver banner text
 	mov		dx, Message
 	mov		ah, 0x09
 	int		0x21
+
+	; Test for XMS Memory
+	mov		ax, 0x4300
+	int		0x2f
+	cmp		al, 0x80
+	je		.XMSPresent
+	mov		dx, NoXMSDriver
+	jmp		.FailedMessage
+
+.XMSPresent:
+	; Get Driver Address
+	push		es
+	mov		ax, 0x4310
+	int		0x2f
+	mov		[XMSDriver], bx
+	mov		[XMSDriver+2], es
+	pop		es
+
+	; Allocate XMS Memory
+	mov		ah, 0x09
+	mov		dx, [XMSSize]	; Size in KB
+	call		far [XMSDriver]
+	test		ax, ax
+	jnz		.XMSAllocated
+	mov		dx, NoXMSAlloc
+	jmp		.FailedMessage
+
+.XMSAllocated:
 
 	; debugging - print "Command Line" of driver initialize
 	; lds		si, [es:di+tREQUEST.CommandLine]
@@ -141,11 +183,42 @@ Initialize:
 	; mov		dl, 0x0a
 	; int		0x21
 
+.Success:
+	mov		[Interface+2], cs
+	; print driver banner text
+	mov		dx, Activated
+	mov		ah, 0x09
+	int		0x21
+	clc
+	jmp		.Finished
+
+.FailedMessage:
+	mov		ah, 0x09
+	int		0x21
+.Failed:
+	mov		dx, NotActivated
+	mov		ah, 0x09
+	int		0x21
+	stc
+
+.Finished:
+	pushf
+	mov		dx, NewLine
+	mov		ah, 0x09
+	int		0x21
+	int		0x21
+	popf
 	; restore additional general registers used during initialization
+	pop		bx
 	pop		cx
 	pop		dx
 	pop		si
 	pop		ds
+
+	mov		ah, 0x01		; done bit, no error bit
+	jnc		Driver.Return
+	; Free driver
+	mov		[es:di+tREQUEST.Address], word Header
 	jmp		Driver.Error
 
 CommonCode
@@ -155,3 +228,13 @@ Message:
 	db	'System Boot Message Logger, v0.1',0x0d,0x0a
 	CopyrightText
 	db	'$'
+NoXMSDriver:
+	db	'XMS driver not installed.',0x0d,0x0a,'$'
+NoXMSAlloc:
+	db	'Unable to allocate XMS memory.',0x0d,0x0a,'$'
+NotActivated:
+	db	'Boot message logging not enabled.$'
+Activated:
+	db	'Boot message logging enabled.$'
+NewLine:
+	db 	0x0d,0x0a,'$'

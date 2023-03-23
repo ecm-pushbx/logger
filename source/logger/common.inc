@@ -64,10 +64,14 @@ PROC_FindDeviceDriver:
 	cmp		al, [es:di]
 	jne		%%Next
 	loop		%%Comparing
+	inc		di
 	; matched driver id string
+	; check request pointer and interface pointer segments
 	cmp		[es:di+2], word -1 ; -1 then driver is not initialized
-	je		%%Next		   ; probably left over garbage like
-	clc				   ; a file copy.
+	je		%%Next		   ; probably left over garbage
+	cmp		[es:di+6], bx 	   ; bx <> driver seg then driver is
+	jne		%%Next		   ; probably left over garbage
+	clc
 	jmp		%%Done
 %%Next:
 	inc		bx
