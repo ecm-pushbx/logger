@@ -70,6 +70,7 @@ function build () {
 	local n="${s##*/}"
 	n="${n%.*}"
 	local o="$(upperCase ${n}.${e})"
+	[[ "${2/.}" != "${2}" ]] && o="$(upperCase ${2})"
 	echo "Building ${n}......"
 	[[ -f "${o}" ]] && rm "${o}"
 	nasm -s "${s}" -ILIBS/ -fbin ${OPTIMIZE} -o "${o}" || die "${n}"
@@ -98,7 +99,7 @@ function build_main () {
 	echo "WARNING: NASM 2.15.05, or later is absolutely required for successful compilation."
 
 	local i
-	build "log.asm" 'com'
+	build "log.asm" 'logger.com'
 	build "logger.asm" 'sys'
 
 	echo "$(wct -l) lines of source code ($(( $(wct -c) / 1024 )) kbytes)"

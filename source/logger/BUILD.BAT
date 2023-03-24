@@ -4,26 +4,27 @@ rem set LIBS=-ILIBS/
 set LIBS=
 
 if "%1" == "" goto buildlist
-if "%EXT%" == "" set EXT=COM
+set OUTNAME=%2
+if "%OUTNAME%" == "" set OUTNAME=%1.COM
 
-if exist %1.%EXT% del %1.%EXT% >nul
+
+if exist %OUTNAME% del %OUTNAME% >nul
 echo Building %1...
-nasm %1.ASM %LIBS% -fbin -O9 -o %1.%EXT%
-if not exist %1.%EXT% goto end
+nasm %1.ASM %LIBS% -fbin -O9 -o %OUTNAME%
+if not exist %OUTNAME% goto end
 
 if not exist ..\..\BIN\NUL mkdir ..\..\BIN
 
-if not exist ..\..\BIN\%1.%EXT% goto NoOldVer
+if not exist ..\..\BIN\%OUTNAME% goto NoOldVer
 
 :NoOldVer
-copy /y %1.%EXT% ..\..\BIN\ >NUL
-dir ..\..\BIN\%1.%EXT%
+copy /y %OUTNAME% ..\..\BIN\ >NUL
+dir ..\..\BIN\%OUTNAME%
 goto end
 
 :buildlist
 
-CALL %0 LOG
-set EXT=SYS
-CALL %0 LOGGER
+CALL %0 LOG LOGGER.COM
+CALL %0 LOGGER LOGGER.SYS
 
 :end
