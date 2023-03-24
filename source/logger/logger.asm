@@ -83,6 +83,8 @@ XMSDriver:		dd -1			; Pointer to XMS driver
 XMSSize:		dw 256			; Size in KB to allocate
 XMSHandle:		dw -1			; XMS Memory block handler
 
+BIOSInt10:		dd -1			; Original BIOS Int 10
+
 ; -----------------------------------------------------------------------------
 
 Driver.Strategy:				; set request block pointer
@@ -111,6 +113,38 @@ Driver.Return:
 	pop		ax
 	popf
 	retf
+
+; -----------------------------------------------------------------------------
+; Device Driver Interrupt 10 Handler
+; -----------------------------------------------------------------------------
+
+DevInt10:
+	pushf
+	cli
+	; is driver enabled?
+	test		[cs:Status], byte 0x01
+	jz		.Done
+
+.Done:
+	popf
+	jmp		far [cs:BIOSInt10]
+
+Capture:
+	push		es
+	push		ax
+	; in a supported text mode?
+	mov		ax, 0x0040
+	push		ax
+	pop		es
+	mov		al, [es:0x0049]	; current video mode
+	and		al, 0x7f
+	cmp		al, 0x07
+	ja		.NoCapture
+
+.NoCapture:
+	pop		ax
+	pop		es
+	ret
 
 ; -----------------------------------------------------------------------------
 ; LOG viewer interface.
@@ -167,10 +201,6 @@ Interface:
 	mov		bx, [Status]
 	jmp		.DoneRequest
 
-
-
-
-
 ; -----------------------------------------------------------------------------
 ; Released after Initialization
 ; -----------------------------------------------------------------------------
@@ -222,6 +252,21 @@ Initialize:
 	jmp		.FailedMessage
 
 .XMSAllocated:
+	; Save BIOS Int 10
+	push		es
+	mov		ax, 0x3510
+	int		0x21
+	mov		[BIOSInt10], bx
+	mov		[BIOSInt10+2], es
+	pop		es
+
+	; Install Driver Interrupt 10 handler
+	mov		dx, DevInt10
+	mov		ax, 0x2510
+	int		0x21
+
+	; enable capture
+	or		[Status], byte 0x01
 
 	; debugging - print "Command Line" of driver initialize
 	; lds		si, [es:di+tREQUEST.CommandLine]
@@ -242,7 +287,7 @@ Initialize:
 	; int		0x21
 
 .Success:
-	mov		[cs:Request+6], cs
+	mov		[Request+6], cs		; save driver far call segment
 	; print driver banner text
 	mov		dx, Activated
 	mov		ah, 0x09
