@@ -81,18 +81,24 @@ Status:			dw 0			; Device driver Status
 						; Bit 1 = Mode Reset Flag
 						; Bit 2 = DirectVideo Mode
 						; Bit 3 = EGA or better
-
-XMSDriver:		dd -1			; Pointer to XMS driver
-XMSSize:		dw 256			; Size in KB to allocate
-XMSHandle:		dw -1			; XMS Memory block handler
-
 BIOSInt10:		dd -1			; Original BIOS Int 10
 LastCaptured:		dw -1			; Last Screen Row Logged
 
-Buffer:
-	Head:		dd 0
-	Tail:		dd 0
+XMS:
+	.Driver:	dd -1			; Pointer to XMS driver
+	.Size:		dw 256			; Size in KB to allocate
+	.Head:		dd 0
+	.Tail:		dd 0
 
+%define MaxTTLSize  80 * 2
+
+XFR:						; XMS transfer Buffer
+	.Count:		dd 0			; byte count { must be even }
+	.SrcHandle:	dw 0			; 0 = conventional memory
+	.SrcAddr:	dd 0			; pointer to source buffer
+	.DstHandle:	dw -1			; XMS handle
+	.DstAddr:	dd 0			; pointer to destination
+	.Buffer:	times MaxTTLSize db 0	; TTL Buffer
 ; -----------------------------------------------------------------------------
 
 Driver.Strategy:				; set request block pointer
@@ -160,7 +166,12 @@ DevInt10:
 .SetDirectMethod:
 	mov		[LastCaptured], word -1 ; set last captured line
 	; or		[Status], 00000100b	; set direct method flag
+	jmp		.SetMethodDone
 .SetTTLMethod:
+	mov		[XFR.Count], word 0 ; don't worry about high word
+	mov		[XFR.SrcAddr], word XFR.Buffer
+	mov		[XFR.SrcAddr+2], cs
+.SetMethodDone:
 	pop		ax
 	pop		es
 
@@ -169,19 +180,36 @@ DevInt10:
 	test		[Status], byte 00000100b ; direct method flag
 	jnz		.CaptureDirect
 	; simple TTL capture
+	cmp		ah, 0x0e
+	jne		.AdjustNone
+	push		di
+	mov		di, [XFR.Count]
+	mov		[XFR.Buffer+di], al	; character
+	inc		di
+	mov		[XFR.Buffer+di], bl	; attribute
+	inc		di
+	mov		[XFR.Count], di
+	cmp		di, MaxTTLSize		; send if TTL buffer is full
+	pop		di
+	je		.SendTTLBuffer
+	cmp		al, 0x0a		; also send on LF
+	jne		.AdjustNone
+.SendTTLBuffer:
+	call		SendToXMS
 	jmp		.AdjustNone
 .CaptureDirect:
 	; Direct video capture
 	; call		Capture
 
-	cmp		ah, 0x07
+	cmp		ah, 0x07	; Scroll Down
 	je		.AdjustScroll
-	cmp		ah, 0x06
+	cmp		ah, 0x06	; Scroll Up
 	je		.AdjustScroll
 .CheckModeChange:
-	cmp		ah, 0x00
-	jne		.AdjustNone
+	test		ah, ah
+	jz		.AdjustNone
 .AdjustModeChange:
+	call		SendToXMS
 	or		[Status], byte 00000010b ; set mode change flag
 	jmp		.AdjustNone
 .AdjustScroll:
@@ -194,7 +222,12 @@ DevInt10:
 	popf
 	jmp		far [cs:BIOSInt10]
 
-
+SendToXMS:
+	cmp		[XFR.Count], word 0
+	je		.Done
+	mov		[XFR.Count], word 0	; set current count to 0
+.Done:
+	ret
 ; -----------------------------------------------------------------------------
 ; LOG viewer interface.
 ;
@@ -274,6 +307,24 @@ Initialize:
 	mov		ah, 0x09
 	int		0x21
 
+	; debugging - print "Command Line" of driver initialize
+	; lds		si, [es:di+tREQUEST.CommandLine]
+	; mov		ah, 0x02
+	; mov		cx, 100
+;.PrintLoop:
+	; mov		dl, [si]
+	; inc		si
+	; cmp		dl, 0x0a
+	; jbe		.PrintDone
+	; int		0x21
+	; dec		cx
+	; jnz		.PrintLoop
+;.PrintDone:
+	; mov		dl, 0x0d
+	; int		0x21
+	; mov		dl, 0x0a
+	; int		0x21
+
 	; Test for XMS Memory
 	mov		ax, 0x4300
 	int		0x2f
@@ -287,14 +338,15 @@ Initialize:
 	push		es
 	mov		ax, 0x4310
 	int		0x2f
-	mov		[XMSDriver], bx
-	mov		[XMSDriver+2], es
+	mov		[XMS.Driver], bx
+	mov		[XMS.Driver+2], es
 	pop		es
 
 	; Allocate XMS Memory
 	mov		ah, 0x09
-	mov		dx, [XMSSize]	; Size in KB
-	call		far [XMSDriver]
+	mov		dx, [XMS.Size]		; Size in KB
+	call		far [XMS.Driver]
+	mov		[XFR.DstHandle], dx	; save XMS Handle
 	test		ax, ax
 	jnz		.XMSAllocated
 	mov		dx, NoXMSAlloc
@@ -316,24 +368,6 @@ Initialize:
 
 	; enable capture
 	or		[Status], byte 00000011	; set enable and mode reset
-
-	; debugging - print "Command Line" of driver initialize
-	; lds		si, [es:di+tREQUEST.CommandLine]
-	; mov		ah, 0x02
-	; mov		cx, 100
-;.PrintLoop:
-	; mov		dl, [si]
-	; inc		si
-	; cmp		dl, 0x0a
-	; jbe		.PrintDone
-	; int		0x21
-	; dec		cx
-	; jnz		.PrintLoop
-;.PrintDone:
-	; mov		dl, 0x0d
-	; int		0x21
-	; mov		dl, 0x0a
-	; int		0x21
 
 .Success:
 	mov		[Request+6], cs		; save driver far call segment
