@@ -33,7 +33,10 @@
 
 use16
 
-cpu 8086
+cpu 8086	; except for the section that writes to XMS memory, everything
+		; else sticks to 8086 instructions. XMS requires a 286, but
+		; I may add support for a small conventional memory buffer
+		; so it can run on older hardware.
 
 org 0x0000
 
@@ -225,8 +228,30 @@ DevInt10:
 SendToXMS:
 	cmp		[XFR.Count], word 0
 	je		.Done
-	mov		[XFR.Count], word 0	; set current count to 0
+
+	; still need to handle buffer wrapping!!!!!!!
+
+	cpu	286
+		pusha
+		mov		si, XFR
+		mov		ax, [XMS.Head]
+		mov		[XFR.DstAddr], ax
+		mov		ax, [XMS.Head+2]
+		mov		[XFR.DstAddr], ax
+		mov		ah, 0x0b
+		call far 	[XMS.Driver]
+		test		ax, ax
+		popa
+		jz		.Done
+		push		ax
+		mov		ax, [XFR.Count]
+		add		[XMS.Head], ax
+		adc		[XMS.Head], word 0
+		pop		ax
+	cpu	8086
+
 .Done:
+	mov		[XFR.Count], word 0	; set current count to 0
 	ret
 ; -----------------------------------------------------------------------------
 ; LOG viewer interface.
