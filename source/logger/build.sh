@@ -99,8 +99,8 @@ function build_main () {
 	echo "WARNING: NASM 2.15.05, or later is absolutely required for successful compilation."
 
 	local i
-	build "log.asm" 'logger.com'
-	build "logger.asm" 'sys'
+	build "log-com.asm" 'logger.com'
+	build "log-sys.asm" 'logger.sys'
 
 	echo "$(wct -l) lines of source code ($(( $(wct -c) / 1024 )) kbytes)"
 }

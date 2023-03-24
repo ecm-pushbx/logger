@@ -9,7 +9,7 @@ if "%OUTNAME%" == "" set OUTNAME=%1.COM
 
 
 if exist %OUTNAME% del %OUTNAME% >nul
-echo Building %1...
+echo Building %OUTNAME%...
 nasm %1.ASM %LIBS% -fbin -O9 -o %OUTNAME%
 if not exist %OUTNAME% goto end
 
@@ -24,7 +24,7 @@ goto end
 
 :buildlist
 
-CALL %0 LOG LOGGER.COM
-CALL %0 LOGGER LOGGER.SYS
+CALL %0 LOG-COM LOGGER.COM
+CALL %0 LOG-SYS LOGGER.SYS
 
 :end
