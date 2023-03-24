@@ -2,8 +2,8 @@ Begin3
 Title:          Logger
 Version:        prerelease
 Entered-date:   n/a
-Description:    Boot logger
-Summary:	Device driver for system boot message logging.
+Description:    System boot message logger
+Summary:	Device driver and interface program for system boot message logging.
 Keywords:       dos 16 bit, asm
 Author:         Jerome Shidel <jerome _AT_ shidel.net>
 Maintained-by:  Jerome Shidel <jerome _AT_ shidel.net>
