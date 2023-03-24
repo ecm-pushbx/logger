@@ -70,30 +70,28 @@ Header:
 	Name:		DeviceDriverID		; 8 character driver name
 
 ; -----------------------------------------------------------------------------
-; In addition to the DeviceDriverID, these pointers are tested by LOG.COM to
+; In addition to the DeviceDriverID, the pointer is tested by LOG.COM to
 ; verify it is actually a running driver and not just as copy of the program
 ; residing in memory.
 
 Request:		dd -1			; Pointer to tREQUEST block
-			dw Interface,-1		; non-DOS interface to driver
 
 ; -----------------------------------------------------------------------------
+; Data that is interacted with directly by LOG.COM program
 
 Status:			dw 0			; Device driver Status
 						; Bit 0 = active
 						; Bit 1 = Mode Reset Flag
 						; Bit 2 = DirectVideo Mode
 						; Bit 3 = EGA or better
-BIOSInt10:		dd -1			; Original BIOS Int 10
-LastCaptured:		dw -1			; Last Screen Row Logged
 
 XMS:
 	.Driver:	dd -1			; Pointer to XMS driver
 	.Size:		dw 256			; Size in KB to allocate
 	.Head:		dd 0
 	.Tail:		dd 0
+	.Count:		dd 0
 
-%define MaxTTLSize  80 * 2
 
 XFR:						; XMS transfer Buffer
 	.Count:		dd 0			; byte count { must be even }
@@ -101,7 +99,17 @@ XFR:						; XMS transfer Buffer
 	.SrcAddr:	dd 0			; pointer to source buffer
 	.DstHandle:	dw -1			; XMS handle
 	.DstAddr:	dd 0			; pointer to destination
-	.Buffer:	times MaxTTLSize db 0	; TTL Buffer
+
+; -----------------------------------------------------------------------------
+; Other data private data
+
+%define MaxTTLSize  80 * 2
+
+XFR.Buffer:	times MaxTTLSize db 0		; TTL Buffer
+
+BIOSInt10:		dd -1			; Original BIOS Int 10
+LastCaptured:		dw -1			; Last Screen Row Logged
+
 ; -----------------------------------------------------------------------------
 
 Driver.Strategy:				; set request block pointer
@@ -245,68 +253,16 @@ SendToXMS:
 		jz		.Done
 		push		ax
 		mov		ax, [XFR.Count]
+		add		[XMS.Count], ax
+		adc		[XMS.Count+2], word 0
 		add		[XMS.Head], ax
-		adc		[XMS.Head], word 0
+		adc		[XMS.Head+2], word 0
 		pop		ax
 	cpu	8086
 
 .Done:
 	mov		[XFR.Count], word 0	; set current count to 0
 	ret
-; -----------------------------------------------------------------------------
-; LOG viewer interface.
-;
-; I may move all this into the viewer itself. That would reduce the memory
-; footprint. However, would require a stable header/data area in this program
-; that the viewer could directly interact.
-;
-; -----------------------------------------------------------------------------
-
-DispatchTable:
-	dw		Interface.Status
-	dw		Interface.Disable
-	dw		Interface.Enable
-
-Interface:
-	pushf
-	cli
-	push		ds
-	push		cs
-	pop		ds
-	mov		al, ah
-	xor		ah, ah
-	shl		ax, 1
-	add		ax, DispatchTable
-	cmp		ax, Interface
-	jae		.BadRequest
-	jmp		ax
-
-.BadRequest:
-	mov		ax, 0x0001
-.ErrorRequest:
-	pop		ds
-	popf
-	stc
-	retf
-
-.DoneRequest:
-	xor		ax, ax
-	pop		ds
-	popf
-	clc
-	ret
-
-.Disable:
-	and		[Status], byte 0xfe
-	jmp		.Status
-
-.Enable:
-	or		[Status], byte 0x01
-	; jmp		.Status
-
-.Status:
-	mov		bx, [Status]
-	jmp		.DoneRequest
 
 ; -----------------------------------------------------------------------------
 ; Released after Initialization
@@ -395,7 +351,6 @@ Initialize:
 	or		[Status], byte 00000011	; set enable and mode reset
 
 .Success:
-	mov		[Request+6], cs		; save driver far call segment
 	; print driver banner text
 	mov		dx, Activated
 	mov		ah, 0x09

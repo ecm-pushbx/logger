@@ -52,6 +52,13 @@ Initialize:
 
 DriverFound:
 	WordAsHex	es
+	ByteAsChar	0x0d,0x0a
+	ByteAsChar	0x0d,0x0a
+	WordAsHex	[es:tDRIVER.Status]
+	ByteAsChar	0x0d,0x0a
+	WordAsHex	[es:tDRIVER.XMS.Count]
+	ByteAsChar	0x0d,0x0a
+
 	mov		ax, 0x4c00
 	int 		0x21
 

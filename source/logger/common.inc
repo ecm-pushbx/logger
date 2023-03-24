@@ -45,6 +45,35 @@
 %define DeviceDriverIDLength 8
 
 ; -----------------------------------------------------------------------------
+struc tDRIVER
+	.ChainNext: 	resd 1			; pointer to next device driver
+	.Attributes:	resw 1			; character device
+	.Strategy:	resw 1			; set request block pointer
+	.Entry:		resw 1			; driver interrupt call
+	.Name:		resb DeviceDriverIDLength; 8 character driver name
+
+	.Request:	resd 1			; Pointer to tREQUEST block
+
+	.Status:	resw 1			; Device driver Status
+						; Bit 0 = active
+						; Bit 1 = Mode Reset Flag
+						; Bit 2 = DirectVideo Mode
+						; Bit 3 = EGA or better
+
+	.XMS.Driver:	resd 1			; Pointer to XMS driver
+	.XMS.Size:	resw 1			; Size in KB to allocate
+	.XMS.Head:	resd 1
+	.XMS.Tail:	resd 1
+	.XMS.Count:	resd 1
+
+	.XFR.Count:	resd 1			; byte count { must be even }
+	.XFR.SrcHandle:	resw 1			; 0 = conventional memory
+	.XFR.SrcAddr:	resd 1			; pointer to source buffer
+	.XFR.DstHandle:	resw 1			; XMS handle
+	.XFR.DstAddr:	resd 1			; pointer to destination
+
+endstruc
+; -----------------------------------------------------------------------------
 
 %imacro FindDeviceDriver 0
 ; Not perfect, but good enough for now.
@@ -69,8 +98,6 @@ PROC_FindDeviceDriver:
 	; check request pointer and interface pointer segments
 	cmp		[es:di+2], word -1 ; -1 then driver is not initialized
 	je		%%Next		   ; probably left over garbage
-	cmp		[es:di+6], bx 	   ; bx <> driver seg then driver is
-	jne		%%Next		   ; probably left over garbage
 	clc
 	jmp		%%Done
 %%Next:
@@ -87,7 +114,7 @@ PROC_FindDeviceDriver:
 %%Done:
 	; ax, bx, cx, dx, si, di = undefined
 	; CY Set not found, es = undefined (0xffff)
-	; CY clear driver found, es is driver segment
+	; CY clear driver found, es is segment of driver
 %endmacro
 
 ; -----------------------------------------------------------------------------
