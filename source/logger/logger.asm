@@ -78,12 +78,20 @@ Request:		dd -1			; Pointer to tREQUEST block
 
 Status:			dw 0			; Device driver Status
 						; Bit 0 = active
+						; Bit 1 = Mode Reset Flag
+						; Bit 2 = DirectVideo Mode
+						; Bit 3 = EGA or better
 
 XMSDriver:		dd -1			; Pointer to XMS driver
 XMSSize:		dw 256			; Size in KB to allocate
 XMSHandle:		dw -1			; XMS Memory block handler
 
 BIOSInt10:		dd -1			; Original BIOS Int 10
+LastCaptured:		dw -1			; Last Screen Row Logged
+
+Buffer:
+	Head:		dd 0
+	Tail:		dd 0
 
 ; -----------------------------------------------------------------------------
 
@@ -121,30 +129,71 @@ Driver.Return:
 DevInt10:
 	pushf
 	cli
+	push		ds
+	push		cs
+	pop		ds	; mov ds, cs
+
 	; is driver enabled?
-	test		[cs:Status], byte 0x01
-	jz		.Done
+	test		[Status], byte 0x01
+	jz		.CheckModeChange
 
-.Done:
-	popf
-	jmp		far [cs:BIOSInt10]
+	; was mode previously changed?
+	test		[Status], byte 0x02
+	jz		.NoModeResetFlag
 
-Capture:
+	; mode was changed, adjust settings
 	push		es
 	push		ax
+	and		[Status], byte 11111001b ; clear reset and method flags
+	test		[Status], byte 00001000b ; is EGA or better?
+	jz		.SetTTLMethod
 	; in a supported text mode?
 	mov		ax, 0x0040
 	push		ax
 	pop		es
-	mov		al, [es:0x0049]	; current video mode
+	mov		al, [es:0x0049]		; current video mode
 	and		al, 0x7f
-	cmp		al, 0x07
-	ja		.NoCapture
-
-.NoCapture:
+	cmp		al, 0x07		; is 80x25 mono?
+	je		.SetDirectMethod
+	cmp		al, 0x03		; not 80x? or 40x?
+	ja		.SetTTLMethod
+.SetDirectMethod:
+	mov		[LastCaptured], word -1 ; set last captured line
+	; or		[Status], 00000100b	; set direct method flag
+.SetTTLMethod:
 	pop		ax
 	pop		es
-	ret
+
+.NoModeResetFlag:
+	; test capture method
+	test		[Status], byte 00000100b ; direct method flag
+	jnz		.CaptureDirect
+	; simple TTL capture
+	jmp		.AdjustNone
+.CaptureDirect:
+	; Direct video capture
+	; call		Capture
+
+	cmp		ah, 0x07
+	je		.AdjustScroll
+	cmp		ah, 0x06
+	je		.AdjustScroll
+.CheckModeChange:
+	cmp		ah, 0x00
+	jne		.AdjustNone
+.AdjustModeChange:
+	or		[Status], byte 00000010b ; set mode change flag
+	jmp		.AdjustNone
+.AdjustScroll:
+	test		cx, cx
+	jnz		.AdjustNotFull
+
+.AdjustNotFull:
+.AdjustNone:
+	pop		ds
+	popf
+	jmp		far [cs:BIOSInt10]
+
 
 ; -----------------------------------------------------------------------------
 ; LOG viewer interface.
@@ -266,7 +315,7 @@ Initialize:
 	int		0x21
 
 	; enable capture
-	or		[Status], byte 0x01
+	or		[Status], byte 00000011	; set enable and mode reset
 
 	; debugging - print "Command Line" of driver initialize
 	; lds		si, [es:di+tREQUEST.CommandLine]
