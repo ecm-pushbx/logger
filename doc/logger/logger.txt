@@ -1,3 +1,58 @@
+*******************************************************************************
+BETA DOCUMENTATION. NOT ALL FUNCTIONALITY OR OPTIONS HAVE BEEN IMPLEMENTED.
+THOSE MAY BE CHANGED, REMOVED OR EVEN MORE ADDED IN THE RELEASE VERSION.
+*******************************************************************************
+
+			        L O G G E R
+
+                   general boot message logging system
+
+-------------------------------------------------------------------------------
+
+Logger consists of a pair of programs that use various methods to capture text
+during the system boot process. The first is LOGGER.SYS which is a device
+driver that gets loaded by the system config file. The second part is an
+interface program called LOGGER.COM which can communicate with the device
+driver.
+
+*******************************************************************************
+
+LOGGER.SYS [XMS | UMB | LOW] [COLOR | MONO] [JAM] [size]
+
+	XMS	Use XMS for log data storage. (default)
+	UMB	Use upper memory for log storage.
+	LOW	Use lower memory for log storage.
+
+	COLOR	Record color attributes associated with log text. (default XMS)
+	MONO	Only record log text. (default for UMB and LOW)
+
+	JAM	Stop recording if log is full. Normally when if the buffer
+		becomes full, older messages are discarded to make room.
+
+	size	Amount of memory to allocate for log in kilobytes.
+		(default for XMS is 256, UMB is 32 and LOW is 16 kilobytes)
+
+EXAMPLES:
+
+DEVICEHIGH=C:\DOS\LOGGER.SYS
+DEVICEHIGH=C:\DOS\LOGGER.SYS UMB COLOR JAM 16
+DEVICE=C:\DOS\LOGGER.SYS LOW 8
+
+-------------------------------------------------------------------------------
+
+LOGGER.COM [ /ON | /PRINT | /ANSI | /VIEW | /CLEAR ]
+
+	/ON		Turns logging back on.
+	/PRINT		Outputs the log text to STDOUT.
+	/ANSI		Outputs the log text (with color) to STDOUT.
+	/VIEW		View the log.
+	/CLEAR		Empties the current log.
+
+Anytime LOGGER.COM is executed, it turns off LOGGING. It does not turn logging
+back on unless the /ON option is provided.
+
+*******************************************************************************
+
 BSD 3-Clause License
 
 Copyright (c) 2023, Jerome Shidel
