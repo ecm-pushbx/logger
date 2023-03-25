@@ -44,14 +44,28 @@ section .text
 %define Header(x) TDriverHeader. %+ x
 
 Initialize:
+	push		cs
+	pop		ds
 	FindDeviceDriver
 	jnc		DriverFound
 	call		PrintVersion
 	mov		dx, NoDriver
+
+ErrorExit:
 	mov		ah, 0x09
 	int		0x21
 	mov		ax,0x4c01
 	int		0x21
+
+DieXMSError:
+	push		bx
+	mov		dx, XMSError
+	mov		ah, 0x09
+	int		0x21
+	pop		ax ; was bx
+	WordAsHex	ax
+	mov		dx, CRLF
+	jmp		ErrorExit
 
 ; -----------------------------------------------------------------------------
 
@@ -71,20 +85,83 @@ PrintVersion:
 ; -----------------------------------------------------------------------------
 
 PrintLog:
-	; save driver status
-	mov		ax, [es:Header(Status)]
-	push		ax
-
 	; if need be, disable driver
-	and 		al, 0xfe		; not sfEnabled
-	mov		[es:Header(Status)], ax
+	and		[es:Header(Status)], bye 0xfe
 
 	mov		ax,[es:Header(XMS.Count)]
 	or		ax,[es:Header(XMS.Count)+2]
 	jz		.Empty
 
-.PrintLoop:
+	; prepare XMS transfer record
+	mov		ax, [es:Header(XFR.DstHandle)]
+	mov		[XFR.SrcHandle], ax
+	mov		[XFR.DstHandle], word 0
+	mov		[XFR.DstAddr], word XMS_Buffer
+	mov		[XFR.DstAddr+2], cs
 
+	; load first item pointer
+	mov		ax, [es:Header(XMS.Tail)]
+	mov		dx, [es:Header(XMS.Tail)+2]
+
+	mov		si, XFR.Count	; set pointer to XFR record
+.PrintLoop:
+	; add stuff to buffer transfers of 1k blocks at a times
+
+	; check if finished
+	cmp		ax, [es:Header(XMS.Head)]
+	jne		.MoreData
+	cmp		dx, [es:Header(XMS.Head)+2]
+	jne		.MoreData
+	; finished printing
+	jmp		.Done
+
+.MoreData:
+	mov		cx, 0x0002
+
+	; set transfer record data
+
+	mov		[XFR.Count], cx
+	mov		[XFR.Count+2], word 0
+	mov		[XFR.SrcAddr], ax
+	mov		[XFR.SrcAddr+2], dx
+
+	; save XMS pointer and count
+	push 		cx
+	push		ax
+	push		dx
+
+	; fetch data
+	mov		ah, 0x0b
+	call far 	[es:Header(XMS.Driver)]
+	test		ax,ax
+	;jz		DieXMSError	; this leaves stuff on the stack, but
+					; that will be cleaned up by DOS at exit
+					; Also, we are going to leave logging
+					; turned off because of the error.
+
+	; print just the character using DOS
+	mov		ah, 0x02
+	mov		dl, [XMS_Buffer]
+	int		0x21
+
+	; restore XMS pointer and count
+	pop		dx
+	pop		ax
+	pop		cx
+
+	; Next read position
+	add		ax, 2
+	adc		dx, 0
+
+	; test if buffer wrap
+	cmp		dx, [es:Header(XMS.Max)+2]
+	jb		.PrintLoop
+	cmp		ax, [es:Header(XMS.Max)]
+	jb		.PrintLoop
+
+	xor		ax, ax
+	mov		dx, ax
+	jmp		.PrintLoop
 
 
 .Empty:
@@ -93,10 +170,6 @@ PrintLog:
 	int		0x21
 
 .Done:
-
-	; restore driver status
-	pop		ax
-	mov		[es:Header(Status)], ax
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -118,11 +191,24 @@ NoDriver:
 	db	'LOGGER.SYS driver is not loaded.',0x0d,0x0a,'$'
 
 LogEmpty:
-	db	'Log is empty.',0x0d,0x0a,'$'
+	db	'Log is empty.'
+
+CRLF:
+	db 	0x0d,0x0a,'$'
+
+XMSError:
+	db	'XMS error #$'
+
 
 ; -----------------------------------------------------------------------------
 
 section .bss
 
-XMS_Ptr:	resd 	1
+XFR:
+	.Count:		resd 1		; byte count { must be even }
+	.SrcHandle:	resw 1		; XMS Handle
+	.SrcAddr:	resd 1		; pointer to source buffer
+	.DstHandle:	resw 1		; ; 0 = conventional memory
+	.DstAddr:	resd 1		; pointer to destination
+
 XMS_Buffer:	resb 	XMS_Buffer_Size

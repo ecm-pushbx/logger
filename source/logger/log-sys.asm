@@ -221,7 +221,7 @@ DevInt10:
 	je		.AdjustScroll
 .CheckModeChange:
 	test		ah, ah
-	jz		.AdjustNone
+	jnz		.AdjustNone
 .AdjustModeChange:
 	call		SendToXMS
 	or		[Header(Status)], byte sfModeChange ; set flag

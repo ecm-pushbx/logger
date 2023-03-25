@@ -212,12 +212,12 @@ PROC_WordAsHex:
 
 %imacro WordAsHex 1
 	%define NEED_WordAsHex
-	%ifnidni %1, al
+	%ifnidni %1, ax
 		push	ax
 		mov	ax, %1
 	%endif
 	call	PROC_WordAsHex
-	%ifnidni %1, al
+	%ifnidni %1, ax
 		pop	ax
 	%endif
 %endmacro
