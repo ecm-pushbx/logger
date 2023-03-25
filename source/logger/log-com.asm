@@ -40,6 +40,9 @@ section .text
 
 %include 'common.inc'
 
+%define XMS_Buffer_Size 1024
+%define Header(x) TDriverHeader. %+ x
+
 Initialize:
 	FindDeviceDriver
 	jnc		DriverFound
@@ -50,17 +53,14 @@ Initialize:
 	mov		ax,0x4c01
 	int		0x21
 
-DriverFound:
-	WordAsHex	es
-	ByteAsChar	0x0d,0x0a
-	ByteAsChar	0x0d,0x0a
-	WordAsHex	[es:tDRIVER.Status]
-	ByteAsChar	0x0d,0x0a
-	WordAsHex	[es:tDRIVER.XMS.Count]
-	ByteAsChar	0x0d,0x0a
+; -----------------------------------------------------------------------------
 
+DriverFound:
+	call		PrintLog
 	mov		ax, 0x4c00
 	int 		0x21
+
+; -----------------------------------------------------------------------------
 
 PrintVersion:
 	mov		dx, Message
@@ -68,7 +68,42 @@ PrintVersion:
 	int		0x21
 	ret
 
+; -----------------------------------------------------------------------------
+
+PrintLog:
+	; save driver status
+	mov		ax, [es:Header(Status)]
+	push		ax
+
+	; if need be, disable driver
+	and 		al, 0xfe		; not sfEnabled
+	mov		[es:Header(Status)], ax
+
+	mov		ax,[es:Header(XMS.Count)]
+	or		ax,[es:Header(XMS.Count)+2]
+	jz		.Empty
+
+.PrintLoop:
+
+
+
+.Empty:
+	mov		dx, LogEmpty
+	mov		ah, 0x09
+	int		0x21
+
+.Done:
+
+	; restore driver status
+	pop		ax
+	mov		[es:Header(Status)], ax
+	ret
+
+; -----------------------------------------------------------------------------
+
 CommonCode
+
+; -----------------------------------------------------------------------------
 
 section .data
 
@@ -80,6 +115,14 @@ Message:
 	CopyrightText
 	db	'$'
 NoDriver:
-	db	'LOGGER.SYS driver not loaded.',0x0d,0x0a,'$'
+	db	'LOGGER.SYS driver is not loaded.',0x0d,0x0a,'$'
+
+LogEmpty:
+	db	'Log is empty.',0x0d,0x0a,'$'
+
+; -----------------------------------------------------------------------------
 
 section .bss
+
+XMS_Ptr:	resd 	1
+XMS_Buffer:	resb 	XMS_Buffer_Size

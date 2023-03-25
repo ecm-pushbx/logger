@@ -62,50 +62,52 @@ endstruc
 
 ; -----------------------------------------------------------------------------
 
-Header:
-	ChainNext: 	dd -1			; pointer to next device driver
-	Attributes:	dw 0x8000		; character device
-	Strategy:	dw Driver.Strategy	; set request block pointer
-	Entry:		dw Driver.Routine	; driver interrupt call
-	Name:		DeviceDriverID		; 8 character driver name
+DriverHeader:
+istruc TDriverHeader
+	at .ChainNext, 	dd -1			; pointer to next device driver
+	at .Attributes,	dw 0x8000		; character device
+	at .Strategy,	dw Driver.Strategy	; set tREQUEST block pointer
+	at .Entry,	dw Driver.Routine	; driver interrupt call
+	at .Name,	DeviceDriverID		; 8 character driver name
 
 ; -----------------------------------------------------------------------------
 ; In addition to the DeviceDriverID, the pointer is tested by LOG.COM to
 ; verify it is actually a running driver and not just as copy of the program
 ; residing in memory.
 
-Request:		dd -1			; Pointer to tREQUEST block
+	at .Request,		dd -1		; Pointer to tREQUEST block
 
 ; -----------------------------------------------------------------------------
 ; Data that is interacted with directly by LOG.COM program
 
-Status:			dw 0			; Device driver Status
-						; Bit 0 = active
-						; Bit 1 = Mode Reset Flag
-						; Bit 2 = DirectVideo Mode
-						; Bit 3 = EGA or better
-
-XMS:
-	.Driver:	dd -1			; Pointer to XMS driver
-	.Size:		dw 256			; Size in KB to allocate
-	.Head:		dd 0
-	.Tail:		dd 0
-	.Count:		dd 0
+	at .Status,		dw 0		; Device driver Status
 
 
-XFR:						; XMS transfer Buffer
-	.Count:		dd 0			; byte count { must be even }
-	.SrcHandle:	dw 0			; 0 = conventional memory
-	.SrcAddr:	dd 0			; pointer to source buffer
-	.DstHandle:	dw -1			; XMS handle
-	.DstAddr:	dd 0			; pointer to destination
+	at .XMS.Driver,		dd -1		; Pointer to XMS driver
+	at .XMS.Size,		dw 256		; Size in KB to allocate
+	at .XMS.Head,		dd 0		; next buffer write position
+	at .XMS.Tail,		dd 0		; first buffer read position
+	at .XMS.Count,		dd 0		; bytes in buffer
+	at .XMS.Max,		dd 0 		; size of buffer in bytes
+
+
+						; XMS transfer Buffer
+	at .XFR.Count,		dd 0		; byte count { must be even }
+	at .XFR.SrcHandle,	dw 0		; 0 = conventional memory
+	at .XFR.SrcAddr,	dd 0		; pointer to source buffer
+	at .XFR.DstHandle,	dw -1		; XMS handle
+	at .XFR.DstAddr,	dd 0		; pointer to destination
+
+iend
+; -----------------------------------------------------------------------------
+
+%define Header(x) DriverHeader + TDriverHeader. %+ x
+%define MaxTTLSize  80 * 2
 
 ; -----------------------------------------------------------------------------
 ; Other data private data
 
-%define MaxTTLSize  80 * 2
-
-XFR.Buffer:	times MaxTTLSize db 0		; TTL Buffer
+XfrTTLBuffer:	times MaxTTLSize db 0		; TTL Buffer
 
 BIOSInt10:		dd -1			; Original BIOS Int 10
 LastCaptured:		dw -1			; Last Screen Row Logged
@@ -113,8 +115,8 @@ LastCaptured:		dw -1			; Last Screen Row Logged
 ; -----------------------------------------------------------------------------
 
 Driver.Strategy:				; set request block pointer
-	mov		[cs:Request], bx
-	mov		[cs:Request+2], es
+	mov		[cs:Header(Request)], bx
+	mov		[cs:Header(Request)+2], es
 	retf
 
 Driver.Routine:					; driver function dispatcher
@@ -123,7 +125,7 @@ Driver.Routine:					; driver function dispatcher
 	push		di
 	push		es
 
-	les		di, [cs:Request]
+	les		di, [cs:Header(Request)]
 	mov		al, [es:di+tREQUEST.Function]
 	test		al, al			; test command 0, initialize
 	jz		Initialize
@@ -151,18 +153,18 @@ DevInt10:
 	pop		ds	; mov ds, cs
 
 	; is driver enabled?
-	test		[Status], byte 0x01
+	test		[Header(Status)], byte sfEnabled
 	jz		.CheckModeChange
 
 	; was mode previously changed?
-	test		[Status], byte 0x02
+	test		[Header(Status)], byte sfModeChange
 	jz		.NoModeResetFlag
 
 	; mode was changed, adjust settings
 	push		es
 	push		ax
-	and		[Status], byte 11111001b ; clear reset and method flags
-	test		[Status], byte 00001000b ; is EGA or better?
+	and		[Header(Status)], byte 11111001b
+	test		[Header(Status)], byte sfEGAorBetter
 	jz		.SetTTLMethod
 	; in a supported text mode?
 	mov		ax, 0x0040
@@ -176,30 +178,30 @@ DevInt10:
 	ja		.SetTTLMethod
 .SetDirectMethod:
 	mov		[LastCaptured], word -1 ; set last captured line
-	; or		[Status], 00000100b	; set direct method flag
+	; or		[Header(Status)], sfDirectMode	; set direct method flag
 	jmp		.SetMethodDone
 .SetTTLMethod:
-	mov		[XFR.Count], word 0 ; don't worry about high word
-	mov		[XFR.SrcAddr], word XFR.Buffer
-	mov		[XFR.SrcAddr+2], cs
+	mov		[Header(XFR.Count)], word 0 ; don't worry about high word
+	mov		[Header(XFR.SrcAddr)], word XfrTTLBuffer
+	mov		[Header(XFR.SrcAddr)+2], cs
 .SetMethodDone:
 	pop		ax
 	pop		es
 
 .NoModeResetFlag:
 	; test capture method
-	test		[Status], byte 00000100b ; direct method flag
+	test		[Header(Status)], byte sfDirectMode ; direct method flag
 	jnz		.CaptureDirect
 	; simple TTL capture
 	cmp		ah, 0x0e
 	jne		.AdjustNone
 	push		di
-	mov		di, [XFR.Count]
-	mov		[XFR.Buffer+di], al	; character
+	mov		di, [Header(XFR.Count)]
+	mov		[XfrTTLBuffer+di], al	; character
 	inc		di
-	mov		[XFR.Buffer+di], bl	; attribute
+	mov		[XfrTTLBuffer+di], bl	; attribute
 	inc		di
-	mov		[XFR.Count], di
+	mov		[Header(XFR.Count)], di
 	cmp		di, MaxTTLSize		; send if TTL buffer is full
 	pop		di
 	je		.SendTTLBuffer
@@ -208,6 +210,7 @@ DevInt10:
 .SendTTLBuffer:
 	call		SendToXMS
 	jmp		.AdjustNone
+
 .CaptureDirect:
 	; Direct video capture
 	; call		Capture
@@ -221,7 +224,7 @@ DevInt10:
 	jz		.AdjustNone
 .AdjustModeChange:
 	call		SendToXMS
-	or		[Status], byte 00000010b ; set mode change flag
+	or		[Header(Status)], byte sfModeChange ; set flag
 	jmp		.AdjustNone
 .AdjustScroll:
 	test		cx, cx
@@ -233,35 +236,37 @@ DevInt10:
 	popf
 	jmp		far [cs:BIOSInt10]
 
+; -----------------------------------------------------------------------------
+
 SendToXMS:
-	cmp		[XFR.Count], word 0
+	cmp		[Header(XFR.Count)], word 0
 	je		.Done
 
 	; still need to handle buffer wrapping!!!!!!!
 
 	cpu	286
 		pusha
-		mov		si, XFR
-		mov		ax, [XMS.Head]
-		mov		[XFR.DstAddr], ax
-		mov		ax, [XMS.Head+2]
-		mov		[XFR.DstAddr], ax
+		mov		si, Header(XFR.Count) ; First item in record
+		mov		ax, [Header(XMS.Head)]
+		mov		[Header(XFR.DstAddr)], ax
+		mov		ax, [Header(XMS.Head)+2]
+		mov		[Header(XFR.DstAddr)+2], ax
 		mov		ah, 0x0b
-		call far 	[XMS.Driver]
+		call far 	[Header(XMS.Driver)]
 		test		ax, ax
 		popa
 		jz		.Done
 		push		ax
-		mov		ax, [XFR.Count]
-		add		[XMS.Count], ax
-		adc		[XMS.Count+2], word 0
-		add		[XMS.Head], ax
-		adc		[XMS.Head+2], word 0
+		mov		ax, [Header(XFR.Count)]
+		add		[Header(XMS.Count)], ax
+		adc		[Header(XMS.Count)+2], word 0
+		add		[Header(XMS.Head)], ax
+		adc		[Header(XMS.Head)+2], word 0
 		pop		ax
 	cpu	8086
 
 .Done:
-	mov		[XFR.Count], word 0	; set current count to 0
+	mov		[Header(XFR.Count)], word 0	; set current count to 0
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -319,21 +324,28 @@ Initialize:
 	push		es
 	mov		ax, 0x4310
 	int		0x2f
-	mov		[XMS.Driver], bx
-	mov		[XMS.Driver+2], es
+	mov		[Header(XMS.Driver)], bx
+	mov		[Header(XMS.Driver)+2], es
 	pop		es
 
 	; Allocate XMS Memory
 	mov		ah, 0x09
-	mov		dx, [XMS.Size]		; Size in KB
-	call		far [XMS.Driver]
-	mov		[XFR.DstHandle], dx	; save XMS Handle
+	mov		dx, [Header(XMS.Size)]		; Size in KB
+	call		far [Header(XMS.Driver)]
+	mov		[Header(XFR.DstHandle)], dx	; save XMS Handle
 	test		ax, ax
 	jnz		.XMSAllocated
 	mov		dx, NoXMSAlloc
 	jmp		.FailedMessage
 
 .XMSAllocated:
+	; set byte size of XMS memory allocated
+	mov		ax, [Header(XMS.Size)]
+	mov		dx, 1024
+	mul		dx
+	mov		[Header(XMS.Max)], ax
+	mov		[Header(XMS.Max)+2], dx
+
 	; Save BIOS Int 10
 	push		es
 	mov		ax, 0x3510
@@ -348,7 +360,7 @@ Initialize:
 	int		0x21
 
 	; enable capture
-	or		[Status], byte 00000011	; set enable and mode reset
+	or		[Header(Status)], byte (sfModeChange + sfEnabled)
 
 .Success:
 	; print driver banner text
@@ -374,6 +386,7 @@ Initialize:
 	int		0x21
 	int		0x21
 	popf
+
 	; restore additional general registers used during initialization
 	pop		bx
 	pop		cx
@@ -383,11 +396,16 @@ Initialize:
 
 	mov		ah, 0x01		; done bit, no error bit
 	jnc		Driver.Return
-	; Free driver
-	mov		[es:di+tREQUEST.Address], word Header
+
+	; Free entire device driver by setting pointer to driver start
+	mov		[es:di+tREQUEST.Address], word DriverHeader
 	jmp		Driver.Error
 
+; -----------------------------------------------------------------------------
+
 CommonCode
+
+; -----------------------------------------------------------------------------
 
 Message:
 	db	0x0d,0x0a

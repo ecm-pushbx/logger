@@ -39,32 +39,34 @@
 %endmacro
 
 %imacro DeviceDriverID 0
-	db 'LOGGERxx'	; 8 Char Device Driver Name
+	db 'LOGGERxx'	; 8 character driver name, space padded if needed
 %endmacro
 
-%define DeviceDriverIDLength 8
+%define DriverIDLength 8
+
+%idefine sfEnabled 	00000001b
+%idefine sfModeChange	00000010b
+%idefine sfDirectMode	00000100b
+%idefine sfEGAorBetter	00001000b
 
 ; -----------------------------------------------------------------------------
-struc tDRIVER
+struc TDriverHeader
 	.ChainNext: 	resd 1			; pointer to next device driver
 	.Attributes:	resw 1			; character device
 	.Strategy:	resw 1			; set request block pointer
 	.Entry:		resw 1			; driver interrupt call
-	.Name:		resb DeviceDriverIDLength; 8 character driver name
+	.Name:		resb DriverIDLength	; 8 character driver name
 
 	.Request:	resd 1			; Pointer to tREQUEST block
 
 	.Status:	resw 1			; Device driver Status
-						; Bit 0 = active
-						; Bit 1 = Mode Reset Flag
-						; Bit 2 = DirectVideo Mode
-						; Bit 3 = EGA or better
 
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
 	.XMS.Size:	resw 1			; Size in KB to allocate
-	.XMS.Head:	resd 1
-	.XMS.Tail:	resd 1
-	.XMS.Count:	resd 1
+	.XMS.Head:	resd 1			; next buffer write position
+	.XMS.Tail:	resd 1			; first buffer read position
+	.XMS.Count:	resd 1			; bytes in buffer
+	.XMS.Max:	resd 1			; size of buffer in bytes
 
 	.XFR.Count:	resd 1			; byte count { must be even }
 	.XFR.SrcHandle:	resw 1			; 0 = conventional memory
@@ -86,7 +88,7 @@ PROC_FindDeviceDriver:
 	pop		es
 	mov		di, 0x09
 	mov		si, DriverID
-	mov		cx, DeviceDriverIDLength
+	mov		cx, DriverIDLength
 %%Comparing:
 	inc		di
 	lodsb
