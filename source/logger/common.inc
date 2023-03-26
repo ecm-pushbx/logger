@@ -225,6 +225,22 @@ PROC_WordAsHex:
 
 ; -----------------------------------------------------------------------------
 
+%macro INTERNAL_ParseOptions 0
+PROC_ParseOptions:
+
+	ret
+%endmacro
+
+%macro ParseOptions 2
+	%define NEED_ParseOptions
+	mov	bx, %1
+	mov	si, %2
+	call	PROC_ParseOptions
+
+%endmacro
+
+; -----------------------------------------------------------------------------
+
 %imacro ConditionalCode 1
 	%ifdef NEED_%1
 		%ifndef AVAIL_%1
@@ -235,6 +251,7 @@ PROC_WordAsHex:
 %endmacro
 
 %imacro CommonCode 0
+	ConditionalCode	ParseOptions
 	ConditionalCode	WordAsHex
 	ConditionalCode	ByteAsHex
 	ConditionalCode	NibbleAsHex

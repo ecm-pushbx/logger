@@ -40,25 +40,27 @@ section .text
 
 %include 'common.inc'
 
-%define XMS_Buffer_Size 1024
+%define XMS_Buffer_Size 2	; for now, a word at a time is good enough
+
 %define Header(x) TDriverHeader. %+ x
 
 Initialize:
-	push		cs
-	pop		ds
 	FindDeviceDriver
 	jnc		DriverFound
 	call		PrintVersion
 	mov		dx, NoDriver
 
 ErrorExit:
+	; Print Message
 	mov		ah, 0x09
 	int		0x21
+	; Terminate with error code 1
 	mov		ax,0x4c01
 	int		0x21
 
 DieXMSError:
-	push		bx
+	; Print XMS error message and code
+	push		bx ; has error code
 	mov		dx, XMSError
 	mov		ah, 0x09
 	int		0x21
@@ -70,12 +72,44 @@ DieXMSError:
 ; -----------------------------------------------------------------------------
 
 DriverFound:
-	; Always disable driver
-	and		[es:Header(Status)], byte 0xfe
+	; save driver status
+	mov		ax, [es:Header(Status)]
+	mov		[OrgStat], ax
 
+	; disable driver
+	and		al , 0xfe			; Not sfEnabled bit flag
+	mov		[es:Header(Status)], ax
+
+	ParseOptions	OptionTable, 0x80		; cs:OptionTable
+							; ds:CommandLine
+
+	test		[Flags], byte 00000010b
+	jnz		.HadOptions
+
+	; empty command line, perform default function
 	call		PrintLog
+
+.HadOptions:
+
+	; Terminate, no error
 	mov		ax, 0x4c00
 	int 		0x21
+
+; -----------------------------------------------------------------------------
+
+OptionTable:
+	dw		Option_Off, 'OFF', 0
+	dw		0
+
+; -----------------------------------------------------------------------------
+
+Option_Off:
+	jmp		Option_Done
+
+Option_Done:
+	or		[Flags], byte 00000010b	; there was an option flag
+	clc
+	ret
 
 ; -----------------------------------------------------------------------------
 
@@ -141,9 +175,75 @@ PrintLog:
 
 	; print just the character using DOS
 	mov		ah, 0x02
-	mov		dl, [XMS_Buffer]
+	mov		dx, [XMS_Buffer]
+	test		[es:Header(Status)], byte sfInColor
+	jnz		.ColorPrint
+
+	int		0x21
+	; if second character is not zero, print it
+	test		dh, dh
+	jz		.PrintedChar
+	mov		dl, dh
+	int		0x21
+	jmp		.PrintedChar
+
+.ColorPrint:
+	mov		dx, [XMS_Buffer]
+	test		[Flags], byte 00000100b	; Color Printing Mode
+	jz		.ColorIsSet
+	cmp		dh, [LastColor]
+	je		.ColorIsSet
+	mov		[LastColor], dh
+
+	; write ansi color change sequence
+	xor		bh,bh
+	push		dx
+	mov		dx, AnsiPrefix
+	mov		ah, 0x09
+	int		0x21
+	pop		dx
+	push		dx
+	mov		ah, 0x02
+	; blink/intensity background?
+	test		dh, 0x80
+	jz		.SetBackground
+	mov		dl, '5'
+	int		0x21
+	mov		dl, ";"
+	int		0x21
+.SetBackground:
+	mov		dl, '4'
+	int		0x21
+	mov		cl, 4
+	mov		al, dh
+	shr		al, cl
+	and		al, 7
+	mov		bl, al
+	mov		dl, [AnsiColors+bx]
+	int		0x21
+	mov		dl, ";"
+	int		0x21
+	; is intensity  foreground?
+	test		dh, 0x08
+	jz		.SetForeground
+	mov		dl, '1'
+	int		0x21
+	mov		dl, ";"
+	int		0x21
+.SetForeground:
+	mov		dl, '3'
+	int		0x21
+	mov		bl, dh
+	and		bl, 7
+	mov		dl, [AnsiColors+bx]
+	int		0x21
+	mov		dl, 'm'
+	int		0x21
+	pop		dx
+.ColorIsSet:
 	int		0x21
 
+.PrintedChar:
 	; restore XMS pointer and count
 	pop		dx
 	pop		ax
@@ -162,7 +262,6 @@ PrintLog:
 	xor		ax, ax
 	mov		dx, ax
 	jmp		.PrintLoop
-
 
 .Empty:
 	mov		dx, LogEmpty
@@ -199,10 +298,25 @@ CRLF:
 XMSError:
 	db	'XMS error #$'
 
+AnsiPrefix:
+	db	27,'[0;$'
+
+AnsiColors:
+	db	0x30,0x34,0x32,0x36,0x31,0x35,0x33,0x37
+
+Flags:
+	db	00000100b		; bit 0 = restore driver status on exit
+					; bit 1 = Command line options provided
+					; bit 2 = Color printing mode
+LastColor:
+	db	0
+
 
 ; -----------------------------------------------------------------------------
 
 section .bss
+
+OrgStat: 		resw 1		; Original Driver Status at Startup
 
 XFR:
 	.Count:		resd 1		; byte count { must be even }
