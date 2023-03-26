@@ -48,9 +48,13 @@ LOGGER.COM [ ON ] [ PRINT | ANSI | VIEW | CLEAR | MSG text ]
 	VIEW		View the log.
 	CLEAR		Empties the current log.
 	MSG text	Add message text to the log.
+	STDIN		Add text from STDIN to the log.
 
-Anytime LOGGER.COM is executed, it turns off message logging. It will never
-turn the message logging back on unless the /ON option is provided.
+Anytime LOGGER.COM is executed, it turns off message logging. It does not
+turn the message logging back on unless the /ON option is provided. The
+exception to that is when LOGGER.COM adds messages to the log manually with
+either the MSG or STDIN options. Those options return logging to its previous
+OFF or ON state.
 
 *******************************************************************************
 
