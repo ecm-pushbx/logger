@@ -48,6 +48,7 @@
 %idefine sfModeChange	00000010b
 %idefine sfDirectMode	00000100b
 %idefine sfEGAorBetter	00001000b
+%idefine sfInColor	00010000b
 
 ; -----------------------------------------------------------------------------
 struc TDriverHeader

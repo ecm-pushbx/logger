@@ -80,8 +80,8 @@ istruc TDriverHeader
 ; -----------------------------------------------------------------------------
 ; Data that is interacted with directly by LOG.COM program
 
-	at .Status,		dw 0		; Device driver Status
-
+	at .Status,		dw sfInColor	; Device driver Status
+						; default capture in color
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw 256		; Size in KB to allocate
@@ -197,6 +197,7 @@ DevInt10:
 	jne		.AdjustNone
 	push		di
 	mov		di, [Header(XFR.Count)]
+	; bh = page, for now don't care
 	mov		[XfrTTLBuffer+di], al	; character
 	inc		di
 	mov		[XfrTTLBuffer+di], bl	; attribute
@@ -310,6 +311,7 @@ Initialize:
 	; int		0x21
 	; mov		dl, 0x0a
 	; int		0x21
+
 
 	; Test for XMS Memory
 	mov		ax, 0x4300

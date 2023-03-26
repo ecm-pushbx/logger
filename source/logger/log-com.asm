@@ -70,6 +70,9 @@ DieXMSError:
 ; -----------------------------------------------------------------------------
 
 DriverFound:
+	; Always disable driver
+	and		[es:Header(Status)], byte 0xfe
+
 	call		PrintLog
 	mov		ax, 0x4c00
 	int 		0x21
@@ -85,9 +88,6 @@ PrintVersion:
 ; -----------------------------------------------------------------------------
 
 PrintLog:
-	; if need be, disable driver
-	and		[es:Header(Status)], bye 0xfe
-
 	mov		ax,[es:Header(XMS.Count)]
 	or		ax,[es:Header(XMS.Count)+2]
 	jz		.Empty
@@ -134,7 +134,7 @@ PrintLog:
 	mov		ah, 0x0b
 	call far 	[es:Header(XMS.Driver)]
 	test		ax,ax
-	;jz		DieXMSError	; this leaves stuff on the stack, but
+	jz		DieXMSError	; this leaves stuff on the stack, but
 					; that will be cleaned up by DOS at exit
 					; Also, we are going to leave logging
 					; turned off because of the error.
