@@ -257,14 +257,14 @@ PROC_ParseOptions:
 	inc	di
 	jmp	PROC_ParseOptions
 .GetOptDone:
-	ByteAsChar '!',0x0d,0x0a
-	cmp	dl, 0x20
-	je	.GetOptNext
 	cmp	si, di
 	jne	.SearchOption
+	cmp	dl, 0x20
+	je	.GetOptNext
 	ret
 
 .SearchOption:
+	ByteAsChar '!',0x0d,0x0a
 	jmp	.GetOptNext
 
 %endmacro
