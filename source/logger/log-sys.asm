@@ -35,7 +35,7 @@ use16
 
 
 cpu 8086	; except for the section that writes to XMS memory, everything
-		; else sticks to 8086 instructions. XMS requires a 286, but
+		; else sticks to 8086 instructions. XMS requires a 286. But,
 		; I may add support for a small conventional memory buffer
 		; so it can run on older hardware.
 
@@ -202,12 +202,15 @@ DevInt10:
 	cmp		ah, 0x0e
 	jne		.AdjustNone
 	push		di
-	mov		di, [Header(XFR.Count)]
 	; bh = page, for now don't care
+	mov		di, [Header(XFR.Count)]
 	mov		[XfrTTLBuffer+di], al	; character
 	inc		di
+	test		[Header(Status)], byte sfInColor
+	jz		.NoColorAttrib
 	mov		[XfrTTLBuffer+di], bl	; attribute
 	inc		di
+.NoColorAttrib:
 	mov		[Header(XFR.Count)], di
 	cmp		di, MaxTTLSize		; send if TTL buffer is full
 	pop		di
@@ -215,6 +218,17 @@ DevInt10:
 	cmp		al, 0x0a		; also send on LF
 	jne		.AdjustNone
 .SendTTLBuffer:
+	; In case mono capture, make sure we have an even number of bytes
+	test		[Header(XFR.Count)], byte 1
+	jz		.SendTTLNow
+	; if not, then slap a zero on the end
+	push		di
+	mov		di, [Header(XFR.Count)]
+	mov		[XfrTTLBuffer+di], byte 0
+	inc		di
+	mov		[Header(XFR.Count)], di
+	pop		di
+.SendTTLNow:
 	call		SendToXMS
 	jmp		.AdjustNone
 
@@ -249,7 +263,7 @@ SendToXMS:
 	cmp		[Header(XFR.Count)], word 0
 	je		.Done
 
-	; still need to handle buffer wrapping!!!!!!!
+	; still need to implement log jamming
 
 	cpu	286
 		pusha
@@ -280,7 +294,8 @@ SendToXMS:
 		; figure out how many bytes are in second send
 		sub		cx, [Header(XMS.Max)]
 		push		cx  			; save for later
-		; figure out how many bytes in first send
+
+		; figure out how many bytes in first part
 		mov		bx, [si]
 		sub		bx, cx
 
@@ -309,13 +324,32 @@ SendToXMS:
 
 		push		cs
 		pop		ds		; mov ds, cs - just in case
-		test		ax, ax
-		jz		.SendDone
+		test		ax, ax		; test for XMS Error
+		jz		.SendDone	; can't do much about it
+
+		; update bytes written count
 		mov		ax, [Header(XFR.Count)]
 		add		[Header(XMS.Count)], ax
 		adc		[Header(XMS.Count)+2], word 0
+
+		; adjust head for next write
 		add		[Header(XMS.Head)], ax
 		adc		[Header(XMS.Head)+2], word 0
+
+		; if needed, wrap head back to buffer start
+		mov		ax, [Header(XMS.Head)+2]
+		cmp		ax, [Header(XMS.Max)+2]
+		jb		.NoHeadWrap
+		mov		ax, [Header(XMS.Head)]
+		cmp		ax, [Header(XMS.Max)]
+		jb		.NoHeadWrap
+		xor		ax, ax
+		mov		[Header(XMS.Head)], ax
+		mov		[Header(XMS.Head)+2], ax
+	.NoHeadWrap:
+
+		; if tail was over-written, adjust to head
+
 		ret
 	.SendDone:
 		popa
