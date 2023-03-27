@@ -264,6 +264,7 @@ SendToXMS:
 	je		.Done
 
 	; still need to implement log jamming
+	; still need to check tail and move when full.
 
 	cpu	286
 		pusha
@@ -317,6 +318,7 @@ SendToXMS:
 		jmp		.SendDone
 
 	.SendBuffer:
+
 		push		si		; save just in case
 		mov		ah, 0x0b	; func 0x0b, DS:SI->XFR Record
 		call far 	[Header(XMS.Driver)]
@@ -331,6 +333,9 @@ SendToXMS:
 		mov		ax, [Header(XFR.Count)]
 		add		[Header(XMS.Count)], ax
 		adc		[Header(XMS.Count)+2], word 0
+		jnc		.NoCountOverflow
+		mov		[Header(XMS.Count)], word 1 ; so it ain't 0
+	.NoCountOverflow:
 
 		; adjust head for next write
 		add		[Header(XMS.Head)], ax
