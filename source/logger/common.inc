@@ -50,6 +50,7 @@
 %idefine sfEGAorBetter	00001000b
 %idefine sfInColor	00010000b
 %idefine sfLogJam	00100000b
+%idefine sfLogFull	01000000b
 
 ; -----------------------------------------------------------------------------
 struc TDriverHeader

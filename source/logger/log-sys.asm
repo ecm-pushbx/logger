@@ -90,7 +90,7 @@ istruc TDriverHeader
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw XMS_DefSize	; Size in KB to allocate
 	at .XMS.Head,		dd 0		; next buffer write position
-	at .XMS.Tail,		dd 0		; first buffer read position
+	at .XMS.Tail,		dd -1		; first buffer read position
 	at .XMS.Count,		dd 0		; bytes in buffer
 	at .XMS.Max,		dd 0 		; size of buffer in bytes
 
@@ -261,10 +261,15 @@ DevInt10:
 
 SendToXMS:
 	cmp		[Header(XFR.Count)], word 0
-	je		.Done
+	je		.NoLogData
 
-	; still need to implement log jamming
-	; still need to check tail and move when full.
+	; test if sfLogJam (stop when full) bit is set (only set by driver when
+	; it is initialized) and if the Log is now Full (always once wraps)
+	test 		[Header(Status)], byte sfLogJam
+	jz		.NoStopWhenFull
+	test 		[Header(Status)], byte sfLogFull
+	jnz		.Done
+.NoStopWhenFull:
 
 	cpu	286
 		pusha
@@ -297,7 +302,7 @@ SendToXMS:
 		push		cx  			; save for later
 
 		; figure out how many bytes in first part
-		mov		bx, [si]
+		mov		bx, [si]	; [Header(XFR.Count)]
 		sub		bx, cx
 
 		; set buffer count for first part and send
@@ -306,15 +311,15 @@ SendToXMS:
 
 		; set buffer count for second part
 		pop		cx
-		mov		bx, [si]
+		mov		bx, [si]	; [Header(XFR.Count)]
 		mov		[si], cx
 
 		; adjust send buffer offset for part two and send
-		push		bx	; we will ned to restore it later
-		add		[Header(XFR.SrcAddr)], bx
+		push		bx	; we will restore it after call
+		add		[Header(XFR.SrcAddr)], bx ; adjust send buffer
 		call		.SendBuffer
 		pop		bx
-		sub		[Header(XFR.SrcAddr)], bx
+		sub		[Header(XFR.SrcAddr)], bx ; fix send buffer
 		jmp		.SendDone
 
 	.SendBuffer:
@@ -330,16 +335,26 @@ SendToXMS:
 		jz		.SendDone	; can't do much about it
 
 		; update bytes written count
-		mov		ax, [Header(XFR.Count)]
+		mov		ax, [si]	; [Header(XFR.Count)]
 		add		[Header(XMS.Count)], ax
 		adc		[Header(XMS.Count)+2], word 0
 		jnc		.NoCountOverflow
 		mov		[Header(XMS.Count)], word 1 ; so it ain't 0
 	.NoCountOverflow:
 
+		; save current old head position
+		push		word [Header(XMS.Head)+2]
+		push		word [Header(XMS.Head)]
+
 		; adjust head for next write
 		add		[Header(XMS.Head)], ax
 		adc		[Header(XMS.Head)+2], word 0
+
+		; load new head - 1
+		mov		cx, [Header(XMS.Head)]
+		mov		bx, [Header(XMS.Head)+2]
+		sub		cx, 1
+		sbb		bx, 0
 
 		; if needed, wrap head back to buffer start
 		mov		ax, [Header(XMS.Head)+2]
@@ -351,10 +366,48 @@ SendToXMS:
 		xor		ax, ax
 		mov		[Header(XMS.Head)], ax
 		mov		[Header(XMS.Head)+2], ax
+		; if log wrapped, it is now in a full state and will remain
+		; that way until cleared.
+		or		[Header(Status)], byte sfLogFull
 	.NoHeadWrap:
 
-		; if tail was over-written, adjust to head
+		; pop old head into dx:ax
+		pop		ax
+		pop		dx
 
+		; if new (head - 1) is below tail, no need to move
+		cmp		bx, [Header(XMS.Tail)+2]
+		ja		.NoTailMove
+		cmp		cx, [Header(XMS.Tail)]
+		ja		.NoTailMove
+
+		; if old head was above the tail, did not overwrite
+		cmp		dx, [Header(XMS.Tail)+2]
+		ja		.NotOverwriteTail
+		cmp		ax, [Header(XMS.Tail)]
+		ja		.NotOverwriteTail
+
+		; we wrote the buffer tail and need to move it to the new head
+		; because head is the next place we will write, so is still
+		; oldest data in buffer.
+		mov		ax, [Header(XMS.Head)]
+		mov		[Header(XMS.Tail)], ax
+		mov		ax, [Header(XMS.Head)+2]
+		mov		[Header(XMS.Tail)+2], ax
+		jmp		.NoTailMove
+	.NotOverwriteTail:
+		; since we did not overwrite the tail, the tail could be in
+		; it's invalid initial state of -1. If so, point it at the
+		; first byte in the buffer.
+		cmp		[Header(XMS.Tail)], word -1
+		jne		.NoTailMove
+		cmp		[Header(XMS.Tail)+2], word -1
+		jne		.NoTailMove
+		xor		ax, ax
+		mov		[Header(XMS.Tail)], ax
+		mov		[Header(XMS.Tail)+2], ax
+
+	.NoTailMove:
 		ret
 	.SendDone:
 		popa
@@ -362,6 +415,7 @@ SendToXMS:
 
 .Done:
 	mov		[Header(XFR.Count)], word 0	; set current count to 0
+.NoLogData:
 	ret
 
 ; -----------------------------------------------------------------------------

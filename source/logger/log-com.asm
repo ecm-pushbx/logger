@@ -122,6 +122,9 @@ PrintVersion:
 ; -----------------------------------------------------------------------------
 
 PrintLog:
+	; test if log is empty. There are two methods of checking for that.
+	; Either by checking the TAIL pointer is not -1, or by checking that
+	; the Count is not 0. Checking the Count uses a couple less bytes.
 	mov		ax,[es:Header(XMS.Count)]
 	or		ax,[es:Header(XMS.Count)+2]
 	jz		.Empty
