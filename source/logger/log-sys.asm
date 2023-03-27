@@ -443,15 +443,31 @@ Initialize:
 	mov		ah, 0x09
 	int		0x21
 
-	; parse driver "command line" options
 	push		es
 	push		di
+
+	; parse driver "command line" options
 	les		di, [es:di+tREQUEST.CommandLine]
+.SkipToParams:
+	mov		al, [es:di]
+	cmp		al, 0x20
+	jbe		.AtParams
+	inc		di
+	jmp		.SkipToParams
+.AtParams:
 	ParseOptions	OptionTable, di
+
+	; check if there were parameters, otherwise process defaults
+	cmp		[HadOption], byte 0
+	jne		.ParamsDone
+	push		cs
+	pop		es
+	ParseOptions	OptionTable, DefaultOptions
+
+	; done processing parameters
+.ParamsDone:
 	pop		di
 	pop		es
-	;cmp		[ParseError], 0
-	;jne
 
 	; Test for XMS Memory
 	mov		ax, 0x4300
@@ -544,13 +560,63 @@ Initialize:
 	jmp		Driver.Error
 
 ; -----------------------------------------------------------------------------
+Option_XMS:
+	ByteAsChar	'X'
+	jmp		Option_Done
+
+Option_UMB:
+	ByteAsChar	'U'
+	jmp		Option_Done
+
+Option_LOW:
+	ByteAsChar	'L'
+	jmp		Option_Done
+
+Option_JAM:
+	ByteAsChar	'J'
+	jmp		Option_Done
+
+Option_COLOR:
+	ByteAsChar	'C'
+	jmp		Option_Done
+
+Option_MONO:
+	ByteAsChar	'M'
+	jmp		Option_Done
 
 Option_Unknown:
+	mov		si, cx
+	cld
+	ByteAsChar	'?'
+.PrintLoop:
+	cmp		si, di
+	je		.PrintDone
+	es lodsb
+	ByteAsChar	al
+	jmp		.PrintLoop
+.PrintDone:
+
+Option_Done:
+	ByteAsChar	0x0d,0x0a
+	mov		[HadOption], byte 1
 	ret
 
 ; -----------------------------------------------------------------------------
 
 OptionTable:
+	dw		Option_XMS
+	db		'XMS', 0
+	dw		Option_UMB
+	db		'UMB', 0
+	dw		Option_LOW
+	db		'LOW', 0
+	dw		Option_JAM
+	db		'JAM', 0
+	dw		Option_COLOR
+	db		'COLOR',0
+	dw		Option_MONO
+	db		'MONO',0
+
 	dw		0, Option_Unknown
 
 ; -----------------------------------------------------------------------------
@@ -575,5 +641,8 @@ Activated:
 NewLine:
 	db 	0x0d,0x0a,'$'
 
-Defaults:
+DefaultOptions:
 	db	'256 COLOR XMS 32 MONO UMB 16 MONO LOW',0
+
+HadOption:
+	db	0
