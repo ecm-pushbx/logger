@@ -47,7 +47,7 @@ section .text
 Initialize:
 	push		cs
 	pop		es
-	ParseOptions	HelpTable, 0x81			; cs:OptionTable
+	ParseOptions	HelpTable, 0x81			; ds:OptionTable
 							; es:CommandLine
 
 	FindDeviceDriver
@@ -112,7 +112,7 @@ DriverFound:
 	push		es
 	push		cs
 	pop		es
-	ParseOptions	OptionTable, 0x81		; cs:OptionTable
+	ParseOptions	OptionTable, 0x81		; ds:OptionTable
 							; es:CommandLine
 	pop		es
 
@@ -137,6 +137,7 @@ ExitNoError:
 ; -----------------------------------------------------------------------------
 
 HelpTable:
+	; used to pre-test for help and validate options
 	dw		Option_Version
 	db		'VERSION', 0
 	dw		Option_IgnoreRest
@@ -149,7 +150,21 @@ HelpTable:
 	db 		'/H', 0
 	dw		Option_Help
 	db 		'/?', 0
-	dw		0
+	dw		Option_Skip
+	db		'OFF', 0
+	dw		Option_Skip
+	db	 	'ON', 0
+	dw		Option_Skip
+	db		'CLEAR', 0
+	dw		Option_Skip
+	db		'PRINT', 0
+	dw		Option_Skip
+	db	 	'ANSI', 0
+	dw		Option_Skip
+	db	 	'VIEW', 0
+	dw		Option_Skip
+	db	 	'STDIN', 0
+	dw		0,Option_Bad	; catch all
 ; -----------------------------------------------------------------------------
 
 OptionTable:
@@ -171,7 +186,7 @@ OptionTable:
 	db	 	'MSG', 0
 	dw		Option_StdIn
 	db	 	'STDIN', 0
-	dw		0
+	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------
 
@@ -187,12 +202,24 @@ Option_Version:
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
+Option_Bad:
+	mov		dx, BadOptionPre
+	mov		ah, 0x09
+	int		0x21
+	mov		si, cx
+	mov		ah, 0x02
+	cld
+.PrintLoop:
+	cmp		si, di
+	je		.PrintDone
+	lodsb
+	mov		dl, al
+	int		0x21
+	jmp		.PrintLoop
+.PrintDone:
 
-Option_Skip:
-	or		[Flags], byte ofShowVersion
-	jmp		Option_Done
-
-; -----------------------------------------------------------------------------
+	mov		dx, BadOptionPost
+	jmp		ErrorExit
 
 Option_IgnoreRest:
 	mov		al, [es:di]
@@ -272,10 +299,9 @@ Option_StdIn:
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
-
+Option_Skip:
 Option_Done:
 	or		[Flags], byte ofHadOptions ; there was an option flag
-	clc
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -469,6 +495,11 @@ Message:
 	db	'$'
 NoDriver:
 	db	'LOGGER.SYS driver is not loaded.',0x0d,0x0a,'$'
+
+BadOptionPre:
+	db	'Invalid option "$'
+BadOptionPost:
+	db	'" provided to LOGGER.',0x0d,0x0a,'$'
 
 LogEmpty:
 	db	'Log is empty.'

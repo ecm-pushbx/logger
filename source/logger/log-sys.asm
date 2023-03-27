@@ -427,7 +427,8 @@ Initialize:
 	mov		[es:di+tREQUEST.Address+2], cs
 	mov		[es:di+tREQUEST.Address], word Initialize
 
-	; save remaining general registers not preserved in function dispatcher
+	; es, di and ax were saved earlier by the driver function dispatcher
+	; interrupt. Now save the remaining general registers that we will use.
 	push		ds
 	push		si
 	push		dx
@@ -442,24 +443,15 @@ Initialize:
 	mov		ah, 0x09
 	int		0x21
 
-	; debugging - print "Command Line" of driver initialize
-	; lds		si, [es:di+tREQUEST.CommandLine]
-	; mov		ah, 0x02
-	; mov		cx, 100
-;.PrintLoop:
-	; mov		dl, [si]
-	; inc		si
-	; cmp		dl, 0x0a
-	; jbe		.PrintDone
-	; int		0x21
-	; dec		cx
-	; jnz		.PrintLoop
-;.PrintDone:
-	; mov		dl, 0x0d
-	; int		0x21
-	; mov		dl, 0x0a
-	; int		0x21
-
+	; parse driver "command line" options
+	push		es
+	push		di
+	les		di, [es:di+tREQUEST.CommandLine]
+	ParseOptions	OptionTable, di
+	pop		di
+	pop		es
+	;cmp		[ParseError], 0
+	;jne
 
 	; Test for XMS Memory
 	mov		ax, 0x4300
@@ -550,6 +542,16 @@ Initialize:
 	; Free entire device driver by setting pointer to driver start
 	mov		[es:di+tREQUEST.Address], word DriverHeader
 	jmp		Driver.Error
+
+; -----------------------------------------------------------------------------
+
+Option_Unknown:
+	ret
+
+; -----------------------------------------------------------------------------
+
+OptionTable:
+	dw		0, Option_Unknown
 
 ; -----------------------------------------------------------------------------
 

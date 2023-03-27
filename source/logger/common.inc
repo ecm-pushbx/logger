@@ -240,6 +240,7 @@ PROC_WordAsHex:
 
 %macro INTERNAL_ParseOptions 0
 PROC_ParseOptions:
+.MainLoop:
 	mov	cx, di
 .GetOptLoop:
 	mov	dl, [es:di]
@@ -251,7 +252,7 @@ PROC_ParseOptions:
 	jmp	.GetOptLoop
 .GetOptNext:
 	inc	di
-	jmp	PROC_ParseOptions
+	jmp	.MainLoop
 .GetOptDone:
 	cmp	cx, di
 	jne	.SearchOption
@@ -269,6 +270,11 @@ PROC_ParseOptions:
 	test	ax, ax
 	jz	.NotFound
 	mov	dx, ax	; option function pointer
+	jmp	.CompareLoop
+.NotFound:
+	lodsw
+	mov	dx, ax  ; Catch all function
+	jmp	.Matched
 .CompareLoop:
 	mov	ah, [es:bx]
 	inc	bx
@@ -297,8 +303,6 @@ PROC_ParseOptions:
 	jz	.NextOpt
 	lodsb
 	jmp	.MissMatch
-.NotFound:
-	jmp	.SearchDone
 .SearchDone:
 	pop	si
 	jmp	.GetOptNext
@@ -308,9 +312,10 @@ PROC_ParseOptions:
 %macro ParseOptions 2
 	%define NEED_ParseOptions
 	mov	si, %1
-	mov	di, %2
+	%ifnidni %2, di
+		mov	di, %2
+	%endif
 	call	PROC_ParseOptions
-
 %endmacro
 
 ; -----------------------------------------------------------------------------
