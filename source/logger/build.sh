@@ -90,7 +90,7 @@ function build () {
 }
 
 function wct () {
-	local t=$(wc ${@} *.asm *.ASM 2>/dev/null | grep -i ' total')
+	local t=$(wc ${@} *.asm *.ASM *.inc *.INC 2>/dev/null | grep -i ' total')
 	echo ${t% *}
 }
 

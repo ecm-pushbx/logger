@@ -240,38 +240,74 @@ PROC_WordAsHex:
 
 %macro INTERNAL_ParseOptions 0
 PROC_ParseOptions:
-	mov	si, di
+	mov	cx, di
 .GetOptLoop:
 	mov	dl, [es:di]
 	cmp	dl, 0x0d
 	jbe	.GetOptDone
 	cmp	dl, 0x20
 	je	.GetOptDone
-
-	mov	ah, 0x02
-	int	0x21
-
 	inc	di
 	jmp	.GetOptLoop
 .GetOptNext:
 	inc	di
 	jmp	PROC_ParseOptions
 .GetOptDone:
-	cmp	si, di
+	cmp	cx, di
 	jne	.SearchOption
-	cmp	dl, 0x20
+	cmp	[es:di], byte 0x20
 	je	.GetOptNext
 	ret
 
 .SearchOption:
-	ByteAsChar '!',0x0d,0x0a
+	push	si
+	cld
+.NextOpt:
+	mov	bx, cx  ; start of current option text
+.SearchLoop:
+	lodsw
+	test	ax, ax
+	jz	.NotFound
+	mov	dx, ax	; option function pointer
+.CompareLoop:
+	mov	ah, [es:bx]
+	inc	bx
+	cmp	ah, 0x61
+	jb	.NotLowerCase
+	cmp	ah, 0x7a
+	ja	.NotLowerCase
+	sub	ah, 0x20
+.NotLowerCase:
+	lodsb
+	cmp	al, ah
+	jne	.MissMatch
+	cmp	bx, di
+	jne	.CompareLoop
+	mov	al, [si]
+	test	al, al
+	jnz	.MissMatch
+.Matched:
+	;ByteAsChar 'F'
+	;WordAsHex  dx
+	;ByteAsChar 0x0d,0x0a
+	call	dx
+	jmp	.SearchDone
+.MissMatch:
+	test	al, al
+	jz	.NextOpt
+	lodsb
+	jmp	.MissMatch
+.NotFound:
+	jmp	.SearchDone
+.SearchDone:
+	pop	si
 	jmp	.GetOptNext
 
 %endmacro
 
 %macro ParseOptions 2
 	%define NEED_ParseOptions
-	mov	bx, %1
+	mov	si, %1
 	mov	di, %2
 	call	PROC_ParseOptions
 

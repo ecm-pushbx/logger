@@ -138,21 +138,32 @@ ExitNoError:
 ; -----------------------------------------------------------------------------
 
 HelpTable:
-	dw		Option_Version,	'VERSION', 0
-	dw		Option_Help, 	'HELP', 0
+	dw		Option_Version
+	db		'VERSION', 0
+	dw		Option_Help
+	db 		'HELP', 0
 	dw		0
 ; -----------------------------------------------------------------------------
 
 OptionTable:
-	dw		Option_Skip,	'VERSION', 0
-	dw		Option_Off, 	'OFF', 0
-	dw		Option_On, 	'ON', 0
-	dw		Option_Clear, 	'CLEAR', 0
-	dw		Option_Print, 	'PRINT', 0
-	dw		Option_Ansi, 	'ANSI', 0
-	dw		Option_View, 	'VIEW', 0
-	dw		Option_Msg, 	'MSG', 0
-	dw		Option_StdIn, 	'STDIN', 0
+	dw		Option_Skip
+	db 		'VERSION', 0
+	dw		Option_Off
+	db		'OFF', 0
+	dw		Option_On
+	db	 	'ON', 0
+	dw		Option_Clear
+	db		'CLEAR', 0
+	dw		Option_Print
+	db		'PRINT', 0
+	dw		Option_Ansi
+	db	 	'ANSI', 0
+	dw		Option_View
+	db	 	'VIEW', 0
+	dw		Option_Msg
+	db	 	'MSG', 0
+	dw		Option_StdIn
+	db	 	'STDIN', 0
 	dw		0
 
 ; -----------------------------------------------------------------------------
@@ -467,7 +478,6 @@ Flags:
 
 LastColor:
 	db	0
-
 
 ; -----------------------------------------------------------------------------
 
