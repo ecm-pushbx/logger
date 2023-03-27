@@ -60,7 +60,7 @@ LOGGER.COM [ ON ] [ PRINT | ANSI | VIEW | CLEAR | MSG text ]
 	PRINT		Outputs the log text to STDOUT. (default)
 	ANSI		Outputs the log text (with color) to STDOUT.
 	VIEW		View the log. (not yet implemented)
-	MSG text	Add message text to the log.
+	MSG text	Add the remaining command line as text to the log.
 	STDIN		Add text from STDIN to the log.
 
 Anytime LOGGER.COM is executed, it turns off message logging. It does not

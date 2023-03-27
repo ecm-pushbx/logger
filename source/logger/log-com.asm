@@ -49,7 +49,6 @@ Initialize:
 	pop		es
 	ParseOptions	HelpTable, 0x81			; cs:OptionTable
 							; es:CommandLine
-	; or		[Flags], byte ofShowVersion
 
 	FindDeviceDriver
 	jnc		DriverFound
@@ -140,8 +139,16 @@ ExitNoError:
 HelpTable:
 	dw		Option_Version
 	db		'VERSION', 0
+	dw		Option_IgnoreRest
+	db 		'MSG', 0
 	dw		Option_Help
 	db 		'HELP', 0
+	dw		Option_Help
+	db 		'/HELP', 0
+	dw		Option_Help
+	db 		'/H', 0
+	dw		Option_Help
+	db 		'/?', 0
 	dw		0
 ; -----------------------------------------------------------------------------
 
@@ -185,6 +192,14 @@ Option_Skip:
 	or		[Flags], byte ofShowVersion
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
+Option_IgnoreRest:
+	mov		al, [es:di]
+	cmp		al, 0x0d
+	jbe		Option_Done
+	inc		di
+	jmp		Option_IgnoreRest
 ; -----------------------------------------------------------------------------
 
 Option_Off:
@@ -249,7 +264,7 @@ Option_View:
 ; -----------------------------------------------------------------------------
 
 Option_Msg:
-	jmp		Option_Done
+	jmp		Option_IgnoreRest
 
 ; -----------------------------------------------------------------------------
 
@@ -468,7 +483,8 @@ AnsiPrefix:
 	db	27,'[0;$'
 
 HelpText:
-	db	'see LOGGER.TXT documentation',0x0d,0x0a,'$'
+	incbin  'help.inc'
+	db	'$'
 
 AnsiColors:
 	db	0x30,0x34,0x32,0x36,0x31,0x35,0x33,0x37
