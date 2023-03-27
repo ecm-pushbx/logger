@@ -49,6 +49,7 @@
 %idefine sfDirectMode	00000100b
 %idefine sfEGAorBetter	00001000b
 %idefine sfInColor	00010000b
+%idefine sfLogJam	00100000b
 
 ; -----------------------------------------------------------------------------
 struc TDriverHeader
@@ -211,16 +212,19 @@ PROC_WordAsHex:
 	ret
 %endmacro
 
-%imacro WordAsHex 1
-	%define NEED_WordAsHex
-	%ifnidni %1, ax
-		push	ax
-		mov	ax, %1
-	%endif
-	call	PROC_WordAsHex
-	%ifnidni %1, ax
-		pop	ax
-	%endif
+%imacro WordAsHex 1-*
+	%rep %0
+		%define NEED_WordAsHex
+		%ifnidni %1, ax
+			push	ax
+			mov	ax, %1
+		%endif
+		call	PROC_WordAsHex
+		%ifnidni %1, ax
+			pop	ax
+		%endif
+	%rotate 1
+	%endrep
 %endmacro
 
 ; -----------------------------------------------------------------------------

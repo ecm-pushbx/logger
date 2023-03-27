@@ -44,7 +44,34 @@ section .text
 
 %define Header(x) TDriverHeader. %+ x
 
+jmp	Initialize
+
+Max:	dd 0x0001fffa
+Pos:    dd 0x0001fff5
+Cnt:	dw 0x1000
+
 Initialize:
+
+	mov	bx, [Pos+2]
+	mov	cx, [Pos]
+	WordAsHex bx,cx
+	ByteAsChar 0x0d,0x0a
+
+	add	cx, [Cnt]
+	adc	bx, 0
+	WordAsHex bx,cx
+	ByteAsChar 0x0d,0x0a
+
+	mov	bx, [Cnt]
+	sub	cx, [Max]
+	sub	bx, cx
+
+	WordAsHex  bx
+	ByteAsChar 0x0d,0x0a
+	WordAsHex  cx
+	ByteAsChar 0x0d,0x0a
+
+
 	FindDeviceDriver
 	jnc		DriverFound
 	call		PrintVersion
@@ -250,7 +277,7 @@ PrintLog:
 	pop		cx
 
 	; Next read position
-	add		ax, 2
+	add		ax, cx
 	adc		dx, 0
 
 	; test if buffer wrap

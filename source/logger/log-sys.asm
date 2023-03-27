@@ -33,6 +33,7 @@
 
 use16
 
+
 cpu 8086	; except for the section that writes to XMS memory, everything
 		; else sticks to 8086 instructions. XMS requires a 286, but
 		; I may add support for a small conventional memory buffer
@@ -43,6 +44,9 @@ org 0x0000
 section .text
 
 %include "common.inc"
+
+%idefine XMS_DefSize 	256 		; Default KB size of XMS Log Buffer
+
 
 struc tREQUEST
 	.Length:	resb 1		; requested structure length
@@ -84,7 +88,7 @@ istruc TDriverHeader
 						; default capture in color
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
-	at .XMS.Size,		dw 256		; Size in KB to allocate
+	at .XMS.Size,		dw XMS_DefSize	; Size in KB to allocate
 	at .XMS.Head,		dd 0		; next buffer write position
 	at .XMS.Tail,		dd 0		; first buffer read position
 	at .XMS.Count,		dd 0		; bytes in buffer
@@ -163,7 +167,9 @@ DevInt10:
 	; mode was changed, adjust settings
 	push		es
 	push		ax
+	; clear ModeChange and DirectMethod bits
 	and		[Header(Status)], byte 11111001b
+
 	test		[Header(Status)], byte sfEGAorBetter
 	jz		.SetTTLMethod
 	; in a supported text mode?
@@ -247,23 +253,72 @@ SendToXMS:
 
 	cpu	286
 		pusha
-		mov		si, Header(XFR.Count) ; First item in record
+		; set SI to first item in XFR record and populate record
+		mov		si, Header(XFR.Count)
 		mov		ax, [Header(XMS.Head)]
 		mov		[Header(XFR.DstAddr)], ax
-		mov		ax, [Header(XMS.Head)+2]
-		mov		[Header(XFR.DstAddr)+2], ax
-		mov		ah, 0x0b
+		mov		dx, [Header(XMS.Head)+2]
+		mov		[Header(XFR.DstAddr)+2], dx
+
+		; set bx:cx to end of write position
+		mov		bx, dx		; copy high word of position
+		mov		cx, [si]	; Count
+		add		cx, ax		; add low word of position
+		adc		bx, 0		; inc bx if needed
+
+		; does it extend past buffer end and need wrapped?
+		cmp		bx, [Header(XMS.Max)+2]
+		jb		.SendWholeBuffer
+		cmp		cx, [Header(XMS.Max)]
+		jae		.SendSplitBuffer
+	.SendWholeBuffer:
+		call		.SendBuffer
+		jmp		.SendDone
+	.SendSplitBuffer:
+		; ok we need to split the buffer and send it in two pieces
+
+		; figure out how many bytes are in second send
+		sub		cx, [Header(XMS.Max)]
+		push		cx  			; save for later
+		; figure out how many bytes in first send
+		mov		bx, [si]
+		sub		bx, cx
+
+		; set buffer count for first part and send
+		mov		[si], bx
+		call		.SendBuffer
+
+		; set buffer count for second part
+		pop		cx
+		mov		bx, [si]
+		mov		[si], cx
+
+		; adjust send buffer offset for part two and send
+		push		bx	; we will ned to restore it later
+		add		[Header(XFR.SrcAddr)], bx
+		call		.SendBuffer
+		pop		bx
+		sub		[Header(XFR.SrcAddr)], bx
+		jmp		.SendDone
+
+	.SendBuffer:
+		push		si		; save just in case
+		mov		ah, 0x0b	; func 0x0b, DS:SI->XFR Record
 		call far 	[Header(XMS.Driver)]
+		pop		si
+
+		push		cs
+		pop		ds		; mov ds, cs - just in case
 		test		ax, ax
-		popa
-		jz		.Done
-		push		ax
+		jz		.SendDone
 		mov		ax, [Header(XFR.Count)]
 		add		[Header(XMS.Count)], ax
 		adc		[Header(XMS.Count)+2], word 0
 		add		[Header(XMS.Head)], ax
 		adc		[Header(XMS.Head)+2], word 0
-		pop		ax
+		ret
+	.SendDone:
+		popa
 	cpu	8086
 
 .Done:
