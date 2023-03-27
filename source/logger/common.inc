@@ -44,6 +44,7 @@
 
 %define DriverIDLength 8
 
+; driver status flags
 %idefine sfEnabled 	00000001b
 %idefine sfModeChange	00000010b
 %idefine sfDirectMode	00000100b
@@ -51,6 +52,13 @@
 %idefine sfInColor	00010000b
 %idefine sfLogJam	00100000b
 %idefine sfLogFull	01000000b
+
+; interface status and option flags
+%idefine ofKeepStatus	00000001b	; bit 0 = restore driver status on exit
+%idefine ofHadOptions	00000010b	; bit 1 = command line options provided
+%idefine ofColorPrint	00000100b	; bit 2 = color printing mode
+%idefine ofShowVersion  00001000b	; bit 3 = print version information
+%idefine ofShowHelp	10000000b	; bit 7 = print help and exit
 
 ; -----------------------------------------------------------------------------
 struc TDriverHeader
@@ -232,14 +240,39 @@ PROC_WordAsHex:
 
 %macro INTERNAL_ParseOptions 0
 PROC_ParseOptions:
+	mov	si, di
+.GetOptLoop:
+	mov	dl, [es:di]
+	cmp	dl, 0x0d
+	jbe	.GetOptDone
+	cmp	dl, 0x20
+	je	.GetOptDone
 
+	mov	ah, 0x02
+	int	0x21
+
+	inc	di
+	jmp	.GetOptLoop
+.GetOptNext:
+	inc	di
+	jmp	PROC_ParseOptions
+.GetOptDone:
+	ByteAsChar '!',0x0d,0x0a
+	cmp	dl, 0x20
+	je	.GetOptNext
+	cmp	si, di
+	jne	.SearchOption
 	ret
+
+.SearchOption:
+	jmp	.GetOptNext
+
 %endmacro
 
 %macro ParseOptions 2
 	%define NEED_ParseOptions
 	mov	bx, %1
-	mov	si, %2
+	mov	di, %2
 	call	PROC_ParseOptions
 
 %endmacro

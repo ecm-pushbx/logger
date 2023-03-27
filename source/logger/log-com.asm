@@ -45,9 +45,27 @@ section .text
 %define Header(x) TDriverHeader. %+ x
 
 Initialize:
+	push		cs
+	pop		es
+	ParseOptions	HelpTable, 0x81			; cs:OptionTable
+							; es:CommandLine
+	; or		[Flags], byte ofShowVersion
+
 	FindDeviceDriver
 	jnc		DriverFound
+
+	; test for special help or version request
+	test		[Flags], byte ofShowHelp
+	jz		.NotShowHelp
+	call		PrintHelp
+	jmp		ExitNoError
+.NotShowHelp:
+	test		[Flags], byte ofShowVersion
+	jz		.NotShowVersion
 	call		PrintVersion
+	jmp		ExitNoError
+
+.NotShowVersion:
 	mov		dx, NoDriver
 
 ErrorExit:
@@ -72,6 +90,7 @@ DieXMSError:
 ; -----------------------------------------------------------------------------
 
 DriverFound:
+	mov		[DriverSeg], es
 	; save driver status
 	mov		ax, [es:Header(Status)]
 	mov		[OrgStat], ax
@@ -80,41 +99,170 @@ DriverFound:
 	and		al , 0xfe			; Not sfEnabled bit flag
 	mov		[es:Header(Status)], ax
 
-	ParseOptions	OptionTable, 0x80		; cs:OptionTable
-							; ds:CommandLine
+	; test for special help or version request
+	test		[Flags], byte ofShowHelp
+	jz		.NotShowHelp
+	call		PrintHelp
+	jmp		.HadOptions
+.NotShowHelp:
+	test		[Flags], byte ofShowVersion
+	jz		.NotShowVersion
+	call		PrintVersion
+.NotShowVersion:
 
-	test		[Flags], byte 00000010b
+	push		es
+	push		cs
+	pop		es
+	ParseOptions	OptionTable, 0x81		; cs:OptionTable
+							; es:CommandLine
+	pop		es
+
+	test		[Flags], byte ofHadOptions
 	jnz		.HadOptions
 
 	; empty command line, perform default function
-	call		PrintLog
+	call		Option_Print
 
 .HadOptions:
+	; check if we should set driver to enabled/disabled state, or stay off
+	test		[Flags], byte ofKeepStatus
+	jz		ExitNoError
+	mov		ax, [OrgStat]
+	mov		[es:Header(Status)], ax
 
+ExitNoError:
 	; Terminate, no error
 	mov		ax, 0x4c00
 	int 		0x21
 
 ; -----------------------------------------------------------------------------
 
+HelpTable:
+	dw		Option_Version,	'VERSION', 0
+	dw		Option_Help, 	'HELP', 0
+	dw		0
+; -----------------------------------------------------------------------------
+
 OptionTable:
-	dw		Option_Off, 'OFF', 0
+	dw		Option_Skip,	'VERSION', 0
+	dw		Option_Off, 	'OFF', 0
+	dw		Option_On, 	'ON', 0
+	dw		Option_Clear, 	'CLEAR', 0
+	dw		Option_Print, 	'PRINT', 0
+	dw		Option_Ansi, 	'ANSI', 0
+	dw		Option_View, 	'VIEW', 0
+	dw		Option_Msg, 	'MSG', 0
+	dw		Option_StdIn, 	'STDIN', 0
 	dw		0
 
 ; -----------------------------------------------------------------------------
 
-Option_Off:
+Option_Help:
+	or		[Flags], byte ofShowHelp
+	or		[Flags], byte ofKeepStatus
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
+Option_Version:
+	or		[Flags], byte ofShowVersion
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Skip:
+	or		[Flags], byte ofShowVersion
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Off:
+	; force off regardless of what command line options are used.
+	and		[OrgStat], byte 11111110b	; not sfEnabled
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_On:
+	; force on regardless of what command line options are used.
+	or		[OrgStat], byte sfEnabled
+	or		[Flags], byte ofKeepStatus
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Clear:
+	push		es
+	mov		es, [DriverSeg]
+	; reset log buffer control data
+	mov		al, [OrgStat]
+	and		al, 10111111b		; not sfLogFull
+	mov		[es:Header(Status)], al ; clear sfLogFull bit
+	mov		[OrgStat], al		; update original state
+	xor		ax, ax
+	mov		[es:Header(XMS.Count)], ax	; 0
+	mov		[es:Header(XMS.Count)+2], ax	; 0
+	mov		[es:Header(XMS.Head)], ax	; 0
+	mov		[es:Header(XMS.Head)+2], ax	; 0
+	dec		ax
+	mov		[es:Header(XMS.Tail)], ax	; -1
+	mov		[es:Header(XMS.Tail)+2], ax	; -1
+	pop		es
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Print:
+	push		es
+	mov		es, [DriverSeg]
+	and		[Flags], byte 11111011b ; not ofColorPrint
+	call		PrintLog
+	pop		es
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Ansi:
+	push		es
+	mov		es, [DriverSeg]
+	or		[Flags], byte ofColorPrint
+	call		PrintLog
+	pop		es
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_View:
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Msg:
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_StdIn:
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
 Option_Done:
-	or		[Flags], byte 00000010b	; there was an option flag
+	or		[Flags], byte ofHadOptions ; there was an option flag
 	clc
 	ret
 
 ; -----------------------------------------------------------------------------
 
+PrintHelp:
+	mov		dx, HelpText
+	jmp		PrintMessage
+; -----------------------------------------------------------------------------
+
 PrintVersion:
 	mov		dx, Message
+
+PrintMessage:
 	mov		ah, 0x09
 	int		0x21
 	ret
@@ -122,6 +270,10 @@ PrintVersion:
 ; -----------------------------------------------------------------------------
 
 PrintLog:
+	; When not sfLogJam mode, probably going to have printing skip forward
+	; to first CRLF when the log is full. That would prevent displaying
+	; partial lines when buffer has wrapped and is full.
+
 	; test if log is empty. There are two methods of checking for that.
 	; Either by checking the TAIL pointer is not -1, or by checking that
 	; the Count is not 0. Checking the Count uses a couple less bytes.
@@ -192,7 +344,7 @@ PrintLog:
 
 .ColorPrint:
 	mov		dx, [XMS_Buffer]
-	test		[Flags], byte 00000100b	; Color Printing Mode
+	test		[Flags], byte ofColorPrint
 	jz		.ColorIsSet
 	cmp		dh, [LastColor]
 	je		.ColorIsSet
@@ -304,13 +456,15 @@ XMSError:
 AnsiPrefix:
 	db	27,'[0;$'
 
+HelpText:
+	db	'see LOGGER.TXT documentation',0x0d,0x0a,'$'
+
 AnsiColors:
 	db	0x30,0x34,0x32,0x36,0x31,0x35,0x33,0x37
 
 Flags:
-	db	00000100b		; bit 0 = restore driver status on exit
-					; bit 1 = Command line options provided
-					; bit 2 = Color printing mode
+	db	ofColorPrint
+
 LastColor:
 	db	0
 
@@ -318,6 +472,8 @@ LastColor:
 ; -----------------------------------------------------------------------------
 
 section .bss
+
+DriverSeg:		resw 1		; Segment of Logger.sys driver
 
 OrgStat: 		resw 1		; Original Driver Status at Startup
 

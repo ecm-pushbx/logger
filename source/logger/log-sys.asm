@@ -572,3 +572,6 @@ Activated:
 	db	'Boot message logging enabled.$'
 NewLine:
 	db 	0x0d,0x0a,'$'
+
+Defaults:
+	db	'256 COLOR XMS 32 MONO UMB 16 MONO LOW',0
