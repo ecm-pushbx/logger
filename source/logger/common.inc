@@ -296,6 +296,7 @@ PROC_ParseOptions:
 	;ByteAsChar 'F'
 	;WordAsHex  dx
 	;ByteAsChar 0x0d,0x0a
+	mov	si, cx
 	call	dx
 	jmp	.SearchDone
 .MissMatch:
@@ -316,6 +317,113 @@ PROC_ParseOptions:
 		mov	di, %2
 	%endif
 	call	PROC_ParseOptions
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro PrintOptionText 0
+	cld
+%%Loop:
+	cmp		si, di
+	je		%%Done
+	es lodsb
+	ByteAsChar	al
+	jmp		%%Loop
+%%Done:
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro OptionWordValue 0
+	push	    	si
+	xor         	ax, ax
+	mov         	bl, [es:si]
+	cmp		bl, '-'
+	je		%%Negative
+%%DecLoop:
+	cmp	   	si, di
+	jz	   	%%Success
+	call		%%GetChar
+	cmp        	bl, 'X'
+	je         	%%AsHex
+	sub        	bl, 0x30
+	cmp	    	bl, 0x09
+	ja	    	%%AsHex
+	mov         	cx, 10
+	mul         	cx
+	xor         	bh, bh
+	add         	ax, bx
+	jc	    	%%Overflow
+	test	    	dx, dx
+	jnz	    	%%Overflow
+	jmp        	%%DecLoop
+
+%%GetChar:
+	mov         	bl, [es:si]
+	inc        	si
+	cmp		bl, 0x61
+	jb		%%NotLower
+	cmp		bl, 0x7a
+	ja		%%NotLower
+	sub		bl, 0x20
+%%NotLower:
+	ret
+
+%%AsHex:
+	xor	    	ax, ax
+	pop	    	si
+	push        	si
+
+%%HexLoop:
+	cmp	   	si, di
+	jz	    	%%Success
+	call		%%GetChar
+	cmp	    	bl, 'X'
+	jne	    	%%NotAnX
+	test	    	ax, ax
+	jz	    	%%HexLoop
+	jmp	    	%%Invalid
+%%NotAnX:
+	sub	    	bl, 0x30
+	cmp         	bl, 0x0a
+	jb	    	%%Shifting
+	cmp	    	bl, 0x10
+	jbe	    	%%Invalid
+	cmp	    	bl, 0x16
+	ja	    	%%Invalid
+	sub	    	bl, 0x07
+%%Shifting:
+	clc
+	mov	    	cx, 4
+%%ShiftBits:
+	rcl	    	ax, 1
+	jc	    	%%Overflow
+	loop	    	%%ShiftBits
+	or	    	al, bl
+	jmp	    	%%HexLoop
+
+%%Invalid:
+%%Overflow:
+%%Negative:
+%%Failure:
+	stc
+	jmp		%%Done
+%%Success:
+	clc
+%%Done:
+	pop		si
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro PrintMessage 0-1
+	%if %0 = 1
+		%ifnidni %1, dx
+			mov	dx, %1
+		%endif
+	%endif
+	mov	ah, 0x09
+	int	0x21
 %endmacro
 
 ; -----------------------------------------------------------------------------

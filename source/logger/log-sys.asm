@@ -1,4 +1,4 @@
-; Boot Message Logger
+; Boot Message Logger Device Driver
 
 ; BSD 3-Clause License
 ; Copyright (c) 2023, Jerome Shidel
@@ -438,10 +438,7 @@ Initialize:
 	push		cs
 	pop		ds	; mov ds, cs
 
-	; print driver banner text
-	mov		dx, Message
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage 	Banner
 
 	push		es
 	push		di
@@ -521,28 +518,22 @@ Initialize:
 	or		[Header(Status)], byte (sfModeChange + sfEnabled)
 
 .Success:
-	; print driver banner text
-	mov		dx, Activated
-	mov		ah, 0x09
-	int		0x21
+	; print driver activated text
+	Printmessage	Activated
 	clc
 	jmp		.Finished
 
 .FailedMessage:
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage	dx
+
 .Failed:
-	mov		dx, NotActivated
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage	NotActivated
 	stc
 
 .Finished:
 	pushf
-	mov		dx, NewLine
-	mov		ah, 0x09
-	int		0x21
-	int		0x21
+	PrintMessage	NewLine
+	int		0x21		; repeat Newline message
 	popf
 
 	; restore additional general registers used during initialization
@@ -565,11 +556,11 @@ Option_XMS:
 	jmp		Option_Done
 
 Option_UMB:
-	ByteAsChar	'U'
+	PrintMessage	NoUMBSupport
 	jmp		Option_Done
 
 Option_LOW:
-	ByteAsChar	'L'
+	PrintMessage	NoLOWSupport
 	jmp		Option_Done
 
 Option_JAM:
@@ -585,19 +576,11 @@ Option_MONO:
 	jmp		Option_Done
 
 Option_Unknown:
-	mov		si, cx
-	cld
 	ByteAsChar	'?'
-.PrintLoop:
-	cmp		si, di
-	je		.PrintDone
-	es lodsb
-	ByteAsChar	al
-	jmp		.PrintLoop
-.PrintDone:
+	PrintOptionText
 
 Option_Done:
-	ByteAsChar	0x0d,0x0a
+	; ByteAsChar	0x0d,0x0a
 	mov		[HadOption], byte 1
 	ret
 
@@ -625,19 +608,30 @@ CommonCode
 
 ; -----------------------------------------------------------------------------
 
-Message:
+Banner:
 	db	0x0d,0x0a
 	db	'System Boot Message Logger, v0.1',0x0d,0x0a
 	CopyrightText
 	db	'$'
+
 NoXMSDriver:
 	db	'XMS driver not installed.',0x0d,0x0a,'$'
+
 NoXMSAlloc:
 	db	'Unable to allocate XMS memory.',0x0d,0x0a,'$'
+NoUMBAlloc:
+	db	'Unable to allocate UMB memory.',0x0d,0x0a,'$'
+
+NoUMBSupport:
+	db	'UMB memory not supported.',0x0d,0x0a,'$'
+NoLOWSupport:
+	db	'LOW memory not supported.',0x0d,0x0a,'$'
+
 NotActivated:
 	db	'Boot message logging not enabled.$'
 Activated:
 	db	'Boot message logging enabled.$'
+
 NewLine:
 	db 	0x0d,0x0a,'$'
 

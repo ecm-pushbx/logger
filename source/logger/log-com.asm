@@ -1,4 +1,4 @@
-; Boot Message Logger
+; Boot Message Logger Interface Utility
 
 ; BSD 3-Clause License
 ; Copyright (c) 2023, Jerome Shidel
@@ -68,9 +68,7 @@ Initialize:
 	mov		dx, NoDriver
 
 ErrorExit:
-	; Print Message
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage	dx
 	; Terminate with error code 1
 	mov		ax,0x4c01
 	int		0x21
@@ -78,9 +76,7 @@ ErrorExit:
 DieXMSError:
 	; Print XMS error message and code
 	push		bx ; has error code
-	mov		dx, XMSError
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage	XMSError
 	pop		ax ; was bx
 	WordAsHex	ax
 	mov		dx, CRLF
@@ -203,21 +199,8 @@ Option_Version:
 
 ; -----------------------------------------------------------------------------
 Option_Bad:
-	mov		dx, BadOptionPre
-	mov		ah, 0x09
-	int		0x21
-	mov		si, cx
-	mov		ah, 0x02
-	cld
-.PrintLoop:
-	cmp		si, di
-	je		.PrintDone
-	lodsb
-	mov		dl, al
-	int		0x21
-	jmp		.PrintLoop
-.PrintDone:
-
+	PrintMessage 	BadOptionPre
+	PrintOptionText
 	mov		dx, BadOptionPost
 	jmp		ErrorExit
 
@@ -308,15 +291,14 @@ Option_Done:
 
 PrintHelp:
 	mov		dx, HelpText
-	jmp		PrintMessage
+	jmp		DoPrintMessage
 ; -----------------------------------------------------------------------------
 
 PrintVersion:
-	mov		dx, Message
+	mov		dx, Banner
 
-PrintMessage:
-	mov		ah, 0x09
-	int		0x21
+DoPrintMessage:
+	PrintMessage
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -405,9 +387,7 @@ PrintLog:
 	; write ansi color change sequence
 	xor		bh,bh
 	push		dx
-	mov		dx, AnsiPrefix
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage 	AnsiPrefix
 	pop		dx
 	push		dx
 	mov		ah, 0x02
@@ -471,9 +451,7 @@ PrintLog:
 	jmp		.PrintLoop
 
 .Empty:
-	mov		dx, LogEmpty
-	mov		ah, 0x09
-	int		0x21
+	PrintMessage 	LogEmpty
 
 .Done:
 	ret
@@ -489,7 +467,7 @@ section .data
 DriverID:
 	DeviceDriverID
 
-Message:
+Banner:
 	db	'System Boot Message Log Utility, v0.1',0x0d,0x0a
 	CopyrightText
 	db	'$'
