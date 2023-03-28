@@ -23,14 +23,14 @@ LOGGER.SYS [XMS | UMB | LOW] [COLOR | MONO] [JAM] [size]
 	UMB	Try upper memory for log storage.
 	LOW	Try lower memory for log storage.
 
-	COLOR	Record color attributes associated with log text. (default XMS)
-	MONO	Only record log text. (default for UMB and LOW)
+	COLOR	Record color attributes associated with log text.
+	MONO	Only record log text.
 
 	JAM	Stop recording if log is full. Normally when if the buffer
 		becomes full, older messages are discarded to make room.
 
-	size	Amount of memory to allocate for log in kilobytes.
-		(default for XMS is 256, UMB is 32 and LOW is 16 kilobytes)
+	size	Amount of memory to allocate for log in kilobytes (1-65535).
+
 
 EXAMPLES:
 
@@ -62,6 +62,7 @@ LOGGER.COM [ ON ] [ PRINT | ANSI | VIEW | CLEAR | MSG text ]
 	VIEW		View the log. (not yet implemented)
 	MSG text	Add the remaining command line as text to the log.
 	STDIN		Add text from STDIN to the log.
+	STATUS		Display some status information about the driver.
 
 Anytime LOGGER.COM is executed, it turns off message logging. It does not
 turn the message logging back on unless the ON option is provided. The

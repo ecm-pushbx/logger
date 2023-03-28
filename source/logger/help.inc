@@ -7,6 +7,7 @@ LOGGER.COM [ ON ] [ PRINT | ANSI | VIEW | CLEAR | MSG text ]
 	VIEW		View the log. (not yet implemented)
 	MSG text	Add the remaining command line as text to the log.
 	STDIN		Add text from STDIN to the log.
+	STATUS		Display some status information about the driver.
 
 Anytime LOGGER.COM is executed, it turns off message logging. It does not
 turn the message logging back on unless the ON option is provided. The
