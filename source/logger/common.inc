@@ -238,6 +238,52 @@ PROC_WordAsHex:
 
 ; -----------------------------------------------------------------------------
 
+%macro INTERNAL_WordAsInt 0
+PROC_WordAsInt:
+	push		ax
+	push		bx
+	push		cx
+	push		dx
+	mov		bx, 0x000a
+	mov		cx, 0x0001
+%%Loop:
+	cmp		ax, bx
+	jae		%%OverNine
+	push		ax
+%%UnderTen:
+	pop		ax
+	add		al, 0x30
+	ByteAsChar	al
+	loop        	%%UnderTen
+	jmp		%%Done
+%%OverNine:
+	inc		cx
+	xor		dx, dx
+	div		bx
+	push		dx
+	jmp		%%Loop
+%%Done:
+	pop		dx
+	pop		cx
+	pop		bx
+	pop		ax
+	ret
+%endmacro
+
+%imacro WordAsInt 1
+	%define NEED_WordAsInt
+	%ifnidni %1, ax
+		push	ax
+		mov	ax, %1
+	%endif
+	call	PROC_WordAsInt
+	%ifnidni %1, ax
+		pop	ax
+	%endif
+%endmacro
+
+; -----------------------------------------------------------------------------
+
 %macro INTERNAL_ParseOptions 0
 PROC_ParseOptions:
 .MainLoop:
@@ -438,7 +484,7 @@ PROC_ParseOptions:
 			mov	es, %1
 		%endif
 	%endif
-	WordAsHex	[es:TDriverHeader.XMS.Size]
+	WordAsInt	[es:TDriverHeader.XMS.Size]
 	PrintMessage	%%KB
 	cmp		[es:TDriverHeader.XFR.DstHandle], word 0
 	je		%%NotXMS
@@ -474,7 +520,7 @@ PROC_ParseOptions:
 %%COLOR:db	'color$'
 %%MONO: db	'monochrome'
 %%LOG:	db	' logging.',0x0d,0x0a,'$'
-%%JAM:	db	'Logging will stop until cleared when log is full.',0x0d,0x0a,'$'
+%%JAM:	db	'Logging will stop when the log is full.',0x0d,0x0a,'$'
 
 %%Done:
 %endmacro
@@ -492,6 +538,7 @@ PROC_ParseOptions:
 
 %imacro CommonCode 0
 	ConditionalCode	ParseOptions
+	ConditionalCode	WordAsInt
 	ConditionalCode	WordAsHex
 	ConditionalCode	ByteAsHex
 	ConditionalCode	NibbleAsHex

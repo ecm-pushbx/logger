@@ -45,9 +45,6 @@ section .text
 
 %include "common.inc"
 
-%idefine XMS_DefSize 	256 		; Default KB size of XMS Log Buffer
-
-
 struc tREQUEST
 	.Length:	resb 1		; requested structure length
 	.Unit:		resb 1		; unit number for request
@@ -90,7 +87,7 @@ istruc TDriverHeader
 						; settings will get initialized
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
-	at .XMS.Size,		dw XMS_DefSize	; Size in KB to allocate
+	at .XMS.Size,		dw 32		; Default KB size to allocate
 	at .XMS.Head,		dd 0		; next buffer write position
 	at .XMS.Tail,		dd -1		; first buffer read position
 	at .XMS.Count,		dd 0		; bytes in buffer
@@ -577,7 +574,7 @@ Option_LOW:
 ; -----------------------------------------------------------------------------
 
 Option_JAM:
-	or		[Header(Status)], byte sfInColor
+	or		[Header(Status)], byte sfLogJAM
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
