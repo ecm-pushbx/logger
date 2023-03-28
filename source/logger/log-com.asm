@@ -160,6 +160,8 @@ HelpTable:
 	db	 	'VIEW', 0
 	dw		Option_Skip
 	db	 	'STDIN', 0
+	dw		Option_Skip
+	db	 	'STATUS', 0
 	dw		0,Option_Bad	; catch all
 ; -----------------------------------------------------------------------------
 
@@ -182,6 +184,8 @@ OptionTable:
 	db	 	'MSG', 0
 	dw		Option_StdIn
 	db	 	'STDIN', 0
+	dw		Option_Status
+	db	 	'STATUS', 0
 	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------
@@ -279,6 +283,12 @@ Option_Msg:
 ; -----------------------------------------------------------------------------
 
 Option_StdIn:
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Status:
+	PrintStatus	[DriverSeg]
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------

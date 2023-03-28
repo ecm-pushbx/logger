@@ -84,8 +84,10 @@ istruc TDriverHeader
 ; -----------------------------------------------------------------------------
 ; Data that is interacted with directly by LOG.COM program
 
-	at .Status,		dw sfInColor	; Device driver Status
-						; default capture in color
+	at .Status,		dw sfModeChange	; Device driver Status
+						; set ModeChage Flag so driver
+						; so when enabled, video
+						; settings will get initialized
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw XMS_DefSize	; Size in KB to allocate
@@ -466,40 +468,9 @@ Initialize:
 	pop		di
 	pop		es
 
-	; Test for XMS Memory
-	mov		ax, 0x4300
-	int		0x2f
-	cmp		al, 0x80
-	je		.XMSPresent
-	mov		dx, NoXMSDriver
-	jmp		.FailedMessage
-
-.XMSPresent:
-	; Get Driver Address
-	push		es
-	mov		ax, 0x4310
-	int		0x2f
-	mov		[Header(XMS.Driver)], bx
-	mov		[Header(XMS.Driver)+2], es
-	pop		es
-
-	; Allocate XMS Memory
-	mov		ah, 0x09
-	mov		dx, [Header(XMS.Size)]		; Size in KB
-	call		far [Header(XMS.Driver)]
-	mov		[Header(XFR.DstHandle)], dx	; save XMS Handle
-	test		ax, ax
-	jnz		.XMSAllocated
-	mov		dx, NoXMSAlloc
-	jmp		.FailedMessage
-
-.XMSAllocated:
-	; set byte size of XMS memory allocated
-	mov		ax, [Header(XMS.Size)]
-	mov		dx, 1024
-	mul		dx
-	mov		[Header(XMS.Max)], ax
-	mov		[Header(XMS.Max)+2], dx
+	; If sfEnabled, memory was allocated, so activate driver
+	test		[Header(Status)], byte sfEnabled
+	jz		.Failed
 
 	; Save BIOS Int 10
 	push		es
@@ -514,17 +485,11 @@ Initialize:
 	mov		ax, 0x2510
 	int		0x21
 
-	; enable capture
-	or		[Header(Status)], byte (sfModeChange + sfEnabled)
-
 .Success:
-	; print driver activated text
-	Printmessage	Activated
+	PrintStatus	cs
+	PrintMessage	Activated
 	clc
 	jmp		.Finished
-
-.FailedMessage:
-	PrintMessage	dx
 
 .Failed:
 	PrintMessage	NotActivated
@@ -551,38 +516,131 @@ Initialize:
 	jmp		Driver.Error
 
 ; -----------------------------------------------------------------------------
+
 Option_XMS:
-	ByteAsChar	'X'
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+
+	; Test for XMS Memory
+	mov		ax, 0x4300
+	int		0x2f
+	cmp		al, 0x80
+	je		.XMSPresent
+	mov		dx, NoXMSDriver
+	jmp		Option_Failed
+
+.XMSPresent:
+	; Get Driver Address
+	push		es
+	mov		ax, 0x4310
+	int		0x2f
+	mov		[Header(XMS.Driver)], bx
+	mov		[Header(XMS.Driver)+2], es
+	pop		es
+
+	; Allocate XMS Memory
+	mov		ah, 0x09
+	mov		dx, [Header(XMS.Size)]		; Size in KB
+	call		far [Header(XMS.Driver)]
+	mov		[Header(XFR.DstHandle)], dx	; save XMS Handle
+	test		ax, ax
+	jnz		.XMSAllocated
+	mov		dx, NoXMSAlloc
+	jmp		Option_Failed
+
+.XMSAllocated:
+	; set byte size of XMS memory allocated
+	mov		ax, [Header(XMS.Size)]
+	mov		dx, 1024
+	mul		dx
+	mov		[Header(XMS.Max)], ax
+	mov		[Header(XMS.Max)+2], dx
+	or		[Header(Status)], byte sfEnabled ; Enable Driver
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
 Option_UMB:
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
 	PrintMessage	NoUMBSupport
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
 Option_LOW:
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
 	PrintMessage	NoLOWSupport
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
 Option_JAM:
-	ByteAsChar	'J'
+	or		[Header(Status)], byte sfInColor
 	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
 
 Option_COLOR:
-	ByteAsChar	'C'
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+	or		[Header(Status)], byte sfInColor
 	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
 
 Option_MONO:
-	ByteAsChar	'M'
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+	; not sfInColor 00010000b
+	and		[Header(Status)], byte 11101111b
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
 Option_Unknown:
-	ByteAsChar	'?'
-	PrintOptionText
+	OptionAsWord
+	jc		Option_Bad
+	test		ax, ax
+	jz		Option_Bad
+
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+
+	mov		[Header(XMS.Size)], ax
+	; fall through to Option_Done
+
+; -----------------------------------------------------------------------------
 
 Option_Done:
-	; ByteAsChar	0x0d,0x0a
 	mov		[HadOption], byte 1
 	ret
+
+; -----------------------------------------------------------------------------
+
+Option_Bad:
+	PrintMessage 	BadOptionPre
+	PrintOptionText
+	PrintMessage 	BadOptionPre
+	; fall through to Option_Stop
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Stop:
+	mov		dl, [es:di]
+	cmp		dl, 0x0d
+	jbe		Option_Done
+	inc		di
+	jmp		Option_Stop
+
+; -----------------------------------------------------------------------------
+
+Option_Failed:
+	PrintMessage	dx
+	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
@@ -613,6 +671,11 @@ Banner:
 	db	'System Boot Message Logger, v0.1',0x0d,0x0a
 	CopyrightText
 	db	'$'
+
+BadOptionPre:
+	db	'Invalid option "$'
+BadOptionPost:
+	db	'" provided.',0x0d,0x0a,'$'
 
 NoXMSDriver:
 	db	'XMS driver not installed.',0x0d,0x0a,'$'

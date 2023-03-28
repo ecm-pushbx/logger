@@ -334,7 +334,7 @@ PROC_ParseOptions:
 
 ; -----------------------------------------------------------------------------
 
-%imacro OptionWordValue 0
+%imacro OptionAsWord 0
 	push	    	si
 	xor         	ax, ax
 	mov         	bl, [es:si]
@@ -424,6 +424,59 @@ PROC_ParseOptions:
 	%endif
 	mov	ah, 0x09
 	int	0x21
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro PrintStatus 1
+	%ifnidni %1, es
+		push	es
+		%ifidni %1, cs
+			push	cs
+			pop	es
+		%else
+			mov	es, %1
+		%endif
+	%endif
+	WordAsHex	[es:TDriverHeader.XMS.Size]
+	PrintMessage	%%KB
+	cmp		[es:TDriverHeader.XFR.DstHandle], word 0
+	je		%%NotXMS
+	PrintMessage	%%XMS
+%%NotXMS:
+
+	PrintMessage	%%MEM
+	test		[es:TDriverHeader.Status], byte sfInColor
+	jnz		%%InColor
+	mov		dx, %%MONO
+	jmp		%%Logging
+%%InColor:
+	PrintMessage	%%COLOR
+	mov		dx, %%LOG
+%%Logging:
+	PrintMessage	dx
+
+	test		[es:TDriverHeader.Status], byte sfLogJAM
+	jz		%%NoJAM
+	PrintMessage	%%JAM
+%%NoJAM:
+
+	%ifnidni %1, es
+		pop	es
+	%endif
+	jmp	%%Done
+
+%%KB:	db	'KB of $'
+%%MEM:	db	' of memory allocated for $'
+%%XMS:
+	db	'XMS$'
+
+%%COLOR:db	'color$'
+%%MONO: db	'monochrome'
+%%LOG:	db	' logging.',0x0d,0x0a,'$'
+%%JAM:	db	'Logging will stop until cleared when log is full.',0x0d,0x0a,'$'
+
+%%Done:
 %endmacro
 
 ; -----------------------------------------------------------------------------
