@@ -329,21 +329,23 @@ PROC_ParseOptions:
 	mov	cx, di
 .GetOptLoop:
 	mov	dl, [es:di]
-	cmp	dl, 0x0d
-	jbe	.GetOptDone
+	;cmp	dl, 0x0d
+	;jbe	.GetOptDone
 	cmp	dl, 0x20
-	je	.GetOptDone
+	jbe	.GetOptDone
+	; ByteAsChar '*', dl, '*'
 	inc	di
 	jmp	.GetOptLoop
-.GetOptNext:
-	inc	di
-	jmp	.MainLoop
 .GetOptDone:
 	cmp	cx, di
 	jne	.SearchOption
+.GetOptNext:
 	cmp	[es:di], byte 0x20
-	je	.GetOptNext
+	je	.NotDone
 	ret
+.NotDone:
+	inc	di
+	jmp	.MainLoop
 
 .SearchOption:
 	push	si
@@ -513,6 +515,92 @@ PROC_ParseOptions:
 
 ; -----------------------------------------------------------------------------
 
+%imacro PrintUsage 0
+
+	PrintMessage	%%Buffer
+	mov		ax, [es:TDriverHeader.XMS.Count]
+	mov		dx, [es:TDriverHeader.XMS.Count+2]
+	mov		bx, ax
+	or		bx, dx
+	test		bx, bx
+	jz		%%Empty
+	test 		[es:TDriverHeader.XMS.Max], byte sfLogFull
+	jnz		%%Full
+	mov		cx, [es:TDriverHeader.XMS.Max]
+	mov		bx, [es:TDriverHeader.XMS.Max+2]
+%%Percent:
+	; calculate and display percentage
+%%Reduce:
+	; reduce both count and max to a single word
+	push		di
+	xor		di, di
+	call		%%ShiftSwap
+	call		%%ShiftSwap
+	test		di, di
+	pop		di
+	jz		%%Reduced
+	jmp		%%Reduce
+
+%%ShiftSwap:
+	; shift dx:ax right
+	clc
+	xchg		ax, dx
+	rcr		ax, 1
+	xchg		ax, dx
+	rcr		ax, 1
+	or		di, dx
+	push		ax
+	push		dx
+	push		cx
+	mov		cx, 100
+	mul		cx
+	or		di, dx
+	pop		cx
+	pop		dx
+	pop		ax
+
+	; swap dx:ax with bx:cx
+	xchg		ax, cx
+	xchg		dx, bx
+	ret
+
+%%Reduced:
+	mov		bx, 100
+	mul		bx
+	div		cx
+	WordAsInt	ax
+	PrintMessage	%%IsPercent
+	jmp		%%And
+%%Empty:
+	PrintMessage	%%IsEmpty
+	jmp		%%And
+%%Full:
+	PrintMessage	%%IsFull
+%%And:
+	PrintMessage	%%Logging
+	test		[OrgStat], byte sfEnabled
+	jnz		%%On
+	PrintMessage	%%IsOff
+	PrintMessage	%%CRLF
+	jmp		%%Done
+%%On:
+	PrintMessage	%%IsOn
+	jmp		%%Done
+
+%%Buffer:	db 'The buffer is $'
+%%IsEmpty:	db 'empty$'
+%%IsPercent:    db '% '
+%%IsFull:	db 'full$'
+%%Logging:	db ' and logging is $'
+%%IsOff:	db 'disabled.$'
+%%IsOn:		db 'active.'
+%%CRLF:		db 0x0d,0x0a,'$'
+
+%%Done:
+%endmacro
+
+; -----------------------------------------------------------------------------
+
 %imacro PrintStatus 1
 	%ifnidni %1, es
 		push	es
@@ -528,8 +616,10 @@ PROC_ParseOptions:
 	cmp		[es:TDriverHeader.XFR.DstHandle], word 0
 	je		%%NotXMS
 	PrintMessage	%%XMS
+	jmp		%%Allocated
 %%NotXMS:
 
+%%Allocated:
 	PrintMessage	%%MEM
 	test		[es:TDriverHeader.Status], byte sfInColor
 	jnz		%%InColor
@@ -545,6 +635,10 @@ PROC_ParseOptions:
 	jz		%%NoJAM
 	PrintMessage	%%JAM
 %%NoJAM:
+
+	%ifnidni %1, cs
+		PrintUsage
+	%endif
 
 	%ifnidni %1, es
 		pop	es

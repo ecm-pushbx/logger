@@ -364,6 +364,10 @@ SendToXMS:
 	; if log wrapped, it is now in a full state and will remain
 	; that way until cleared.
 	or		[Header(Status)], byte sfLogFull
+	; if sfLogJAM, disable logger
+	;test		[Header(Status)], byte sfLogJAM
+	;jz		.NoHeadWrap
+	;and		[Header(Status)], byte 11111110b	; not sfEnabled
 .NoHeadWrap:
 
 	; pop old head into dx:ax

@@ -46,8 +46,11 @@ section .text
 
 Initialize:
 	push		cs
+	pop		ds
+	push		cs
 	pop		es
-	ParseOptions	OptionTable, 0x81		; ds:OptionTable
+
+	ParseOptions	OptionTable, 0x81		; cs:OptionTable
 							; es:CommandLine
 
 	and		[Flags], byte 01111111b		; not ofPreTest
@@ -357,14 +360,6 @@ PrintLog:
 .PrintLoop:
 	; add stuff to buffer transfers of 1k blocks at a times
 
-	; check if finished
-	cmp		ax, [es:Header(XMS.Head)]
-	jne		.MoreData
-	cmp		dx, [es:Header(XMS.Head)+2]
-	jne		.MoreData
-	; finished printing
-	jmp		.Done
-
 .MoreData:
 	mov		cx, 0x0002
 
@@ -469,13 +464,22 @@ PrintLog:
 
 	; test if buffer wrap
 	cmp		dx, [es:Header(XMS.Max)+2]
-	jb		.PrintLoop
+	jb		.PrintNext
 	cmp		ax, [es:Header(XMS.Max)]
-	jb		.PrintLoop
+	jb		.PrintNext
 
 	xor		ax, ax
 	mov		dx, ax
-	jmp		.PrintLoop
+	; jmp		.PrintNext
+
+.PrintNext:
+	; check if finished
+	cmp		ax, [es:Header(XMS.Head)]
+	jne		.MoreData
+	cmp		dx, [es:Header(XMS.Head)+2]
+	jne		.MoreData
+	; finished printing
+	jmp		.Done
 
 .Empty:
 	PrintMessage 	LogEmpty
