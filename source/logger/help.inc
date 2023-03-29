@@ -1,16 +1,27 @@
 LOGGER.COM [ ON ] [ PRINT | ANSI | VIEW | CLEAR | MSG text ]
 
-	ON		Turns logging back on when finished.
-	CLEAR		Empties the current log.
-	PRINT		Outputs the log text to STDOUT. (default)
-	ANSI		Outputs the log text (with color) to STDOUT.
-	VIEW		View the log. (not yet implemented)
-	MSG text	Add the remaining command line as text to the log.
-	STDIN		Add text from STDIN to the log.
+Options to override or change the state of logging:
+
+	ON		Force logging on when finished.
+	OFF		Leave logging disabled when finished.
+
+Options that turn leave logging disabled:
+
+	CLEAR		Empties the current log
+	PRINT		Outputs the log text to STDOUT.
+	ANSI		Like PRINT but includes ANSI color sequences.
+	VIEW		View the log, and leave off. (not yet implemented)
+
+Options that will return logging to its previous state:
+
+	VERSION		Display version information.
+	HELP		Display help text.
 	STATUS		Display some status information about the driver.
 
-Anytime LOGGER.COM is executed, it turns off message logging. It does not
-turn the message logging back on unless the ON option is provided. The
-exception to that is when LOGGER.COM adds messages to the log manually with
-either the MSG or STDIN options. Those options return logging to its previous
-OFF or ON state.
+	MSG text	Add the remaining command line as text to the log.
+	STDIN		Add text from STDIN to the log.
+
+LOGGER always disables logging when executed. Based on the options provided on
+the command line, logging may or may not be enabled when the program finishes
+interfacing with the device driver. The default behaviour can be overriden by
+using the OFF and ON options.

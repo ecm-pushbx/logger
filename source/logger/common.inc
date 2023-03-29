@@ -56,9 +56,10 @@
 ; interface status and option flags
 %idefine ofKeepStatus	00000001b	; bit 0 = restore driver status on exit
 %idefine ofHadOptions	00000010b	; bit 1 = command line options provided
-%idefine ofColorPrint	00000100b	; bit 2 = color printing mode
+%idefine ofColorPrint	00000100b	; bit 2 = MONO/ANSI printing selected
 %idefine ofShowVersion  00001000b	; bit 3 = print version information
-%idefine ofShowHelp	10000000b	; bit 7 = print help and exit
+%idefine ofShowHelp	00010000b	; bit 4 = print help and exit
+%idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 
 ; -----------------------------------------------------------------------------
 struc TDriverHeader

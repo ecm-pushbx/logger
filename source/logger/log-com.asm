@@ -40,15 +40,17 @@ section .text
 
 %include 'common.inc'
 
-%define XMS_Buffer_Size 2	; for now, a word at a time is good enough
+%define Buffer_Size 2	; for now, a word at a time is good enough
 
 %define Header(x) TDriverHeader. %+ x
 
 Initialize:
 	push		cs
 	pop		es
-	ParseOptions	HelpTable, 0x81			; ds:OptionTable
+	ParseOptions	OptionTable, 0x81		; ds:OptionTable
 							; es:CommandLine
+
+	and		[Flags], byte 01111111b		; not ofPreTest
 
 	FindDeviceDriver
 	jnc		DriverFound
@@ -132,12 +134,7 @@ ExitNoError:
 
 ; -----------------------------------------------------------------------------
 
-HelpTable:
-	; used to pre-test for help and validate options
-	dw		Option_Version
-	db		'VERSION', 0
-	dw		Option_IgnoreRest
-	db 		'MSG', 0
+OptionTable:
 	dw		Option_Help
 	db 		'HELP', 0
 	dw		Option_Help
@@ -146,28 +143,10 @@ HelpTable:
 	db 		'/H', 0
 	dw		Option_Help
 	db 		'/?', 0
-	dw		Option_Skip
-	db		'OFF', 0
-	dw		Option_Skip
-	db	 	'ON', 0
-	dw		Option_Skip
-	db		'CLEAR', 0
-	dw		Option_Skip
-	db		'PRINT', 0
-	dw		Option_Skip
-	db	 	'ANSI', 0
-	dw		Option_Skip
-	db	 	'VIEW', 0
-	dw		Option_Skip
-	db	 	'STDIN', 0
-	dw		Option_Skip
-	db	 	'STATUS', 0
-	dw		0,Option_Bad	; catch all
-; -----------------------------------------------------------------------------
-
-OptionTable:
-	dw		Option_Skip
+	dw		Option_Version
 	db 		'VERSION', 0
+	dw		Option_Status
+	db	 	'STATUS', 0
 	dw		Option_Off
 	db		'OFF', 0
 	dw		Option_On
@@ -184,8 +163,6 @@ OptionTable:
 	db	 	'MSG', 0
 	dw		Option_StdIn
 	db	 	'STDIN', 0
-	dw		Option_Status
-	db	 	'STATUS', 0
 	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------
@@ -199,6 +176,7 @@ Option_Help:
 
 Option_Version:
 	or		[Flags], byte ofShowVersion
+	or		[Flags], byte ofKeepStatus
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -217,6 +195,8 @@ Option_IgnoreRest:
 ; -----------------------------------------------------------------------------
 
 Option_Off:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
 	; force off regardless of what command line options are used.
 	and		[OrgStat], byte 11111110b	; not sfEnabled
 	jmp		Option_Done
@@ -224,6 +204,8 @@ Option_Off:
 ; -----------------------------------------------------------------------------
 
 Option_On:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
 	; force on regardless of what command line options are used.
 	or		[OrgStat], byte sfEnabled
 	or		[Flags], byte ofKeepStatus
@@ -232,6 +214,9 @@ Option_On:
 ; -----------------------------------------------------------------------------
 
 Option_Clear:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
+	; reset logging buffer to clear it
 	push		es
 	mov		es, [DriverSeg]
 	; reset log buffer control data
@@ -253,6 +238,8 @@ Option_Clear:
 ; -----------------------------------------------------------------------------
 
 Option_Print:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
 	push		es
 	mov		es, [DriverSeg]
 	and		[Flags], byte 11111011b ; not ofColorPrint
@@ -263,6 +250,8 @@ Option_Print:
 ; -----------------------------------------------------------------------------
 
 Option_Ansi:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
 	push		es
 	mov		es, [DriverSeg]
 	or		[Flags], byte ofColorPrint
@@ -273,21 +262,30 @@ Option_Ansi:
 ; -----------------------------------------------------------------------------
 
 Option_View:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
 Option_Msg:
+	test		[Flags], byte ofPreTest
+	jnz		Option_IgnoreRest
 	jmp		Option_IgnoreRest
 
 ; -----------------------------------------------------------------------------
 
 Option_StdIn:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
 Option_Status:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
+	or		[Flags], byte ofKeepStatus
 	PrintStatus	[DriverSeg]
 	jmp		Option_Done
 
@@ -302,6 +300,7 @@ Option_Done:
 PrintHelp:
 	mov		dx, HelpText
 	jmp		DoPrintMessage
+
 ; -----------------------------------------------------------------------------
 
 PrintVersion:
@@ -329,7 +328,7 @@ PrintLog:
 	mov		ax, [es:Header(XFR.DstHandle)]
 	mov		[XFR.SrcHandle], ax
 	mov		[XFR.DstHandle], word 0
-	mov		[XFR.DstAddr], word XMS_Buffer
+	mov		[XFR.DstAddr], word Buffer
 	mov		[XFR.DstAddr+2], cs
 
 	; load first item pointer
@@ -374,7 +373,7 @@ PrintLog:
 
 	; print just the character using DOS
 	mov		ah, 0x02
-	mov		dx, [XMS_Buffer]
+	mov		dx, [Buffer]
 	test		[es:Header(Status)], byte sfInColor
 	jnz		.ColorPrint
 
@@ -387,7 +386,7 @@ PrintLog:
 	jmp		.PrintedChar
 
 .ColorPrint:
-	mov		dx, [XMS_Buffer]
+	mov		dx, [Buffer]
 	test		[Flags], byte ofColorPrint
 	jz		.ColorIsSet
 	cmp		dh, [LastColor]
@@ -509,10 +508,13 @@ AnsiColors:
 	db	0x30,0x34,0x32,0x36,0x31,0x35,0x33,0x37
 
 Flags:
-	db	ofColorPrint
+	db	ofPreTest
 
 LastColor:
 	db	0
+
+OptPreTest:
+	db 	1
 
 ; -----------------------------------------------------------------------------
 
@@ -529,4 +531,4 @@ XFR:
 	.DstHandle:	resw 1		; ; 0 = conventional memory
 	.DstAddr:	resd 1		; pointer to destination
 
-XMS_Buffer:	resb 	XMS_Buffer_Size
+Buffer:			resw Buffer_Size; Transfer Buffer
