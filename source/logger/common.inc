@@ -62,6 +62,7 @@
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 
 ; -----------------------------------------------------------------------------
+
 struc TDriverHeader
 	.ChainNext: 	resd 1			; pointer to next device driver
 	.Attributes:	resw 1			; character device
@@ -87,6 +88,43 @@ struc TDriverHeader
 	.XFR.DstAddr:	resd 1			; pointer to destination
 
 endstruc
+
+; -----------------------------------------------------------------------------
+
+%imacro PUSHAG 0
+	; 8086 is similar to, but not equivalent to PUSHA!
+	; it excludes SP and uses a different order.
+	push	ax
+	push	bx
+	push	cx
+	push	dx
+	push	si
+	push	di
+%endmacro
+
+%imacro POPAG 0
+	pop	di
+	pop	si
+	pop	dx
+	pop	cx
+	pop	bx
+	pop	ax
+%endmacro
+
+%imacro PUSHALL 0
+	pushag
+	push	bp
+	push	es
+	push	ds
+%endmacro
+
+%imacro POPALL 0
+	push	ds
+	push	es
+	push	bp
+	pushag
+%endmacro
+
 ; -----------------------------------------------------------------------------
 
 %imacro FindDeviceDriver 0

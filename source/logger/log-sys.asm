@@ -34,10 +34,7 @@
 use16
 
 
-cpu 8086	; except for the section that writes to XMS memory, everything
-		; else sticks to 8086 instructions. XMS requires a 286. But,
-		; I may add support for a small conventional memory buffer
-		; so it can run on older hardware.
+cpu 8086
 
 org 0x0000
 
@@ -270,8 +267,8 @@ SendToXMS:
 	jnz		.Done
 .NoStopWhenFull:
 
-	cpu	286
-		pusha
+;cpu	286
+		pushag
 		; set SI to first item in XFR record and populate record
 		mov		si, Header(XFR.Count)
 		mov		ax, [Header(XMS.Head)]
@@ -409,8 +406,8 @@ SendToXMS:
 	.NoTailMove:
 		ret
 	.SendDone:
-		popa
-	cpu	8086
+		popag
+;cpu	8086
 
 .Done:
 	mov		[Header(XFR.Count)], word 0	; set current count to 0

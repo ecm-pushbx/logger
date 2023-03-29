@@ -157,12 +157,16 @@ OptionTable:
 	db		'PRINT', 0
 	dw		Option_Ansi
 	db	 	'ANSI', 0
-	dw		Option_View
-	db	 	'VIEW', 0
-	dw		Option_Msg
-	db	 	'MSG', 0
-	dw		Option_StdIn
-	db	 	'STDIN', 0
+;	dw		Option_Msg
+;	db	 	'MSG', 0
+;	dw		Option_StdIn
+;	db	 	'STDIN', 0
+;	dw		Option_View
+;	db	 	'VIEW', 0
+;	dw 		Option_SnapShot
+;	db		'SNAPSHOT', 0
+;	dw 		Option_HotKey
+;	db		'HOTKEY', 0
 	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------
@@ -261,24 +265,38 @@ Option_Ansi:
 
 ; -----------------------------------------------------------------------------
 
-Option_View:
-	test		[Flags], byte ofPreTest
-	jnz		Option_Done
-	jmp		Option_Done
+;Option_View:
+;	test		[Flags], byte ofPreTest
+;	jnz		Option_Done
+;	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
-Option_Msg:
-	test		[Flags], byte ofPreTest
-	jnz		Option_IgnoreRest
-	jmp		Option_IgnoreRest
+;Option_Msg:
+;	test		[Flags], byte ofPreTest
+;	jnz		Option_IgnoreRest
+;	jmp		Option_IgnoreRest
 
 ; -----------------------------------------------------------------------------
 
-Option_StdIn:
-	test		[Flags], byte ofPreTest
-	jnz		Option_Done
-	jmp		Option_Done
+;Option_StdIn:
+;	test		[Flags], byte ofPreTest
+;	jnz		Option_Done
+;	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+;Option_Snapshot:
+;	test		[Flags], byte ofPreTest
+;	jnz		Option_Done
+;	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+;Option_HotKey:
+;	test		[Flags], byte ofPreTest
+;	jnz		Option_Done
+;	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
