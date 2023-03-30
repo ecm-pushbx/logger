@@ -524,7 +524,7 @@ PROC_ParseOptions:
 	or		bx, dx
 	test		bx, bx
 	jz		%%Empty
-	test 		[es:TDriverHeader.XMS.Max], byte sfLogFull
+	test 		[es:TDriverHeader.Status], byte sfLogFull
 	jnz		%%Full
 	mov		cx, [es:TDriverHeader.XMS.Max]
 	mov		bx, [es:TDriverHeader.XMS.Max+2]

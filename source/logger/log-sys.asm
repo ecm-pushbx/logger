@@ -549,6 +549,8 @@ Option_XMS:
 	mov		ax, [Header(XMS.Size)]
 	mov		dx, 1024
 	mul		dx
+	sub		ax, 0x0010
+	sbb		dx, 0x0000
 	mov		[Header(XMS.Max)], ax
 	mov		[Header(XMS.Max)+2], dx
 	or		[Header(Status)], byte sfEnabled ; Enable Driver
