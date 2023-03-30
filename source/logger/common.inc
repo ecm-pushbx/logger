@@ -30,6 +30,13 @@
 
 ; NASM 2.15.05, or later
 
+; DO NOT ENABLE "NO_SPLIT_SEND", it is not ready and. I'm not sure if I will
+; spend time on that method or delete it and keep using buffer splitting.
+
+; %idefine NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
+			; and adjust TOP to last byte. Only whole "lines" or
+			; full send buffers are transfered.
+
 ; -----------------------------------------------------------------------------
 %imacro CopyrightText 0
 	db	'Copyright (c)',0x20
@@ -80,6 +87,9 @@ struc TDriverHeader
 	.XMS.Tail:	resd 1			; first buffer read position
 	.XMS.Count:	resd 1			; bytes in buffer
 	.XMS.Max:	resd 1			; size of buffer in bytes
+%ifdef	NO_SPLIT_SEND				; top unused buffer byte
+	.XMS.Top:	resd 1			; to prevent split send buffer
+%endif						; wrapping, only whole sends
 
 	.XFR.Count:	resd 1			; byte count { must be even }
 	.XFR.SrcHandle:	resw 1			; 0 = conventional memory

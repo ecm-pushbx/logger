@@ -462,6 +462,21 @@ PrintLog:
 	add		ax, cx
 	adc		dx, 0
 
+%ifdef	NO_SPLIT_SEND
+	; test if buffer wrap
+	cmp		ax, [es:Header(XMS.Head)]
+	jne		.CheckTop
+	cmp		dx, [es:Header(XMS.Head)+2]
+	je		.Done
+.CheckTop:
+	cmp		dx, [es:Header(XMS.Top)+2]
+	jb		.PrintNext
+	cmp		ax, [es:Header(XMS.Top)]
+	jb		.PrintNext
+
+	xor		ax, ax
+	mov		dx, ax
+%else
 	; test if buffer wrap
 	cmp		dx, [es:Header(XMS.Max)+2]
 	jb		.PrintNext
@@ -470,6 +485,7 @@ PrintLog:
 
 	xor		ax, ax
 	mov		dx, ax
+%endif
 	; jmp		.PrintNext
 
 .PrintNext:
