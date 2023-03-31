@@ -110,16 +110,16 @@ SendToXMS:
 	ret
 
 .CheckTail:
-	; if TAIL > END it might be good
-	cmp		bx, [Header(XMS.Tail)+2]
-	ja		.OkTail
-	cmp		cx, [Header(XMS.Tail)]
-	ja		.OkTail
 	; if TAIL < HEAD it might be good
 	cmp		dx, [Header(XMS.Tail)+2]
 	jb		.OkTail			; write blocks never 64k
 	cmp		ax, [Header(XMS.Tail)]
 	jb		.OkTail
+	; if TAIL > END it might be good
+	cmp		bx, [Header(XMS.Tail)+2]
+	ja		.OkTail
+	cmp		cx, [Header(XMS.Tail)]
+	ja		.OkTail
 	; Tail was in that range, it is bad
 	; inc		di
 	stc
@@ -146,6 +146,10 @@ SendToXMS:
 .NoError:
 	call		.BufferHead	; fetch previous HEAD
 	call		.BufferEnd	; would have written to dx:ax -> bc:cx
+	%ifdef DEBUG
+		mov	[Header(Debug)], ax
+		mov	[Header(Debug)+2], cx
+	%endif
 	call		.CheckTail	; check if was TAIL in proposed range
 	jnc		.CheckActual
 	; move tail to proposed head
@@ -158,6 +162,10 @@ SendToXMS:
 	mov		ax, [Header(XFR.DstAddr)]
 	mov		dx, [Header(XFR.DstAddr)+2]
 	call		.BufferEnd
+	%ifdef DEBUG
+		mov	[Header(Debug)], ax
+		mov	[Header(Debug)+2], cx
+	%endif
 	call		.CheckTail	; check if was TAIL in actual range
 	jnc		.CheckNull
 	or		[Header(Status)], word 0x0400
