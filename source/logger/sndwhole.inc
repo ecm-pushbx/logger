@@ -110,15 +110,20 @@ SendToXMS:
 	ret
 
 .CheckTail:
+	or		[Header(Debug)+4], word 1
 	cmp		bx, [Header(XMS.Tail)]
 	ja		.MaybeOkTail
+	or		[Header(Debug)+4], word 2
 	cmp		cx, [Header(XMS.Tail)]
 	ja		.OkTail
 .MaybeOkTail:
+	or		[Header(Debug)+4], word 4
 	cmp		dx, [Header(XMS.Tail)]
 	jb		.OkTail
+	or		[Header(Debug)+4], word 8
 	cmp		ax, [Header(XMS.Tail)]
 	jb		.OkTail
+	or		[Header(Debug)+4], word 0x10
 	; Tail was in that range, it is bad
 	; inc		di
 	stc
