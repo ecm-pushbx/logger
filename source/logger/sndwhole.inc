@@ -109,30 +109,6 @@ SendToXMS:
 	; return bx:cx=end, si->count/xfr record
 	ret
 
-.CheckTail:
-	or		[Header(DebugData)], word 1
-	cmp		bx, [Header(XMS.Tail)]
-	ja		.MaybeOkTail
-	or		[Header(DebugData)], word 2
-	cmp		cx, [Header(XMS.Tail)]
-	ja		.OkTail
-.MaybeOkTail:
-	or		[Header(DebugData)], word 4
-	cmp		dx, [Header(XMS.Tail)]
-	jb		.OkTail
-	or		[Header(DebugData)], word 8
-	cmp		ax, [Header(XMS.Tail)]
-	jb		.OkTail
-	or		[Header(DebugData)], word 0x10
-	; Tail was in that range, it is bad
-	; inc		di
-	stc
-	ret
-.OkTail:
-	clc
-	ret
-
-
 .SendBuffer:
 	mov		[Header(XFR.DstAddr)], ax
 	mov		[Header(XFR.DstAddr)+2], dx
@@ -148,47 +124,52 @@ SendToXMS:
 	ret
 
 .NoError:
-	call		.BufferHead	; fetch previous HEAD
-	call		.BufferEnd	; would have written to dx:ax -> bc:cx
-	%ifdef DEBUG
-		mov	[Header(DebugData)+2], ax
-		mov	[Header(DebugData)+4], cx
-	%endif
-	call		.CheckTail	; check if was TAIL in proposed range
-	jnc		.CheckActual
-	; move tail to proposed head
-	or		[Header(Status)], word 0x0200
-	mov		[Header(XMS.Tail)], ax
-	mov		[Header(XMS.Tail)+2], dx
-
-.CheckActual:
-	; fetch head used in write HEAD dx:ax and write END bx:cx
 	mov		ax, [Header(XFR.DstAddr)]
 	mov		dx, [Header(XFR.DstAddr)+2]
 	call		.BufferEnd
-	%ifdef DEBUG
-		mov	[Header(DebugData)+6], ax
-		mov	[Header(DebugData)+8], cx
-	%endif
-	call		.CheckTail	; check if was TAIL in actual range
-	jnc		.CheckNull
-	or		[Header(Status)], word 0x0400
-	; if was tail is in actual write
-	mov		[Header(XMS.Tail)], cx
-	mov		[Header(XMS.Tail)+2], bx
-	jmp		.CheckTop
-
-.CheckNull:
-	mov		ax, [Header(XMS.Tail)]
-	and		ax, [Header(XMS.Tail)+2]
-	cmp		ax, -1
-	jne		.CheckTop
-	or		[Header(Status)], word 0x0100
+	test		ax, ax
+	jnz		.CheckPushTail
+	test		dx, dx
+	jnz		.CheckPushTail
+	; wrote to first xms location, means: just started or wrapped
+	push		ax
+	test		[Header(Status)], byte sfLogFull ; only reset on clear
+	jnz		.WrapAdjust
+	; just starting out, so not wrapped, move tail to first word
 	xor		ax, ax
 	mov		[Header(XMS.Tail)], ax
 	mov		[Header(XMS.Tail)+2], ax
+	pop		ax
+	jmp		.CheckTop
+.WrapAdjust:
+	; we just buffer wrapped, adjust to old HEAD
+	push		dx
+	call		.BufferHead
+	mov		[Header(XMS.Top)], ax
+	mov		[Header(XMS.Top)+2], dx
+	pop		dx
+.WrapAdjustDone:
+	pop		ax
+	jmp		.PushTail
+
+.CheckPushTail:
+	; not wrapped or just starting to write, check if tail needs pushed
+	cmp		bx, [Header(XMS.Tail)+2]
+	jb		.MaybePushTail
+	cmp		cx, [Header(XMS.Tail)]
+	jb		.CheckTop
+.MaybePushTail:
+	cmp		dx, [Header(XMS.Tail)+2]
+	ja		.CheckTop
+	cmp		ax, [Header(XMS.Tail)]
+	ja		.CheckTop
+.PushTail:
+	; TAIL was over-written or we wrapped, adjust to end of write
+	mov		[Header(XMS.Tail)], cx
+	mov		[Header(XMS.Tail)+2], bx
 
 .CheckTop:
+
 	; set new HEAD from write END bx:cx
 	mov		[Header(XMS.Head)], cx
 	mov		[Header(XMS.Head)+2], bx

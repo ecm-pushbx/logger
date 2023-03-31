@@ -260,11 +260,11 @@ Option_Clear:
 		mov		[es:Header(XMS.Top)], ax	; 0
 		mov		[es:Header(XMS.Top)+2], ax	; 0
 	%endif
-	%ifdef  DEBUG
+	%ifdef  DEBUG_DATA_SIZE
 		mov		cx, DEBUG_DATA_SIZE
 		xor		bx, bx
 	.ClearDebug:
-		mov		[es:Header(Debug)+bx], ax
+		mov		[es:Header(DebugData)+bx], ax
 		add		bx, 2
 		loop		.ClearDebug
 	%endif
@@ -375,6 +375,7 @@ PrintLog:
 	; the Count is not 0. Checking the Count uses a couple less bytes.
 	mov		ax,[es:Header(XMS.Count)]
 	or		ax,[es:Header(XMS.Count)+2]
+	test		ax, ax
 	jz		.Empty
 
 	; prepare XMS transfer record

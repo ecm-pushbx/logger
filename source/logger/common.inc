@@ -38,7 +38,7 @@
 			; full send buffers are transfered.
 
 %define DEBUG
-%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
+;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
 ; -----------------------------------------------------------------------------
 %imacro CopyrightText 0
@@ -101,7 +101,7 @@ struc TDriverHeader
 	.XFR.DstHandle:	resw 1			; XMS handle
 	.XFR.DstAddr:	resd 1			; pointer to destination
 
-%ifdef DEBUG
+%ifdef DEBUG_DATA_SIZE
 	.DebugData:	resw DEBUG_DATA_SIZE
 %endif
 
@@ -758,6 +758,7 @@ PROC_ParseOptions:
 	PrintMessage 	%%PreXMSTail
 	WordAsHex 	[es:TDriverHeader.XMS.Tail+2], [es:TDriverHeader.XMS.Tail]
 	PrintMessage 	%%EOL
+%ifdef DEBUG_DATA_SIZE
 	PrintMessage 	%%PreData
 	mov		cx, DEBUG_DATA_SIZE
 	xor		bx,bx
@@ -768,6 +769,7 @@ PROC_ParseOptions:
 	ByteAsChar	' '
 	loop		%%Loop
 	PrintMessage 	%%EOL
+%endif
 	pop		bx
 	pop		cx
 	pop		ax
