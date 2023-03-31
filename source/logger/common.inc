@@ -37,7 +37,7 @@
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
-%idefine DEBUG
+; %idefine DEBUG
 
 ; -----------------------------------------------------------------------------
 %imacro CopyrightText 0
