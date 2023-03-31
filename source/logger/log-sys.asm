@@ -30,9 +30,9 @@
 
 ; NASM 2.15.05, or later
 
+%define DEVICE_DRIVER
 
 use16
-
 
 cpu 8086
 
@@ -616,6 +616,17 @@ Initialize:
 
 	push		es
 	push		di
+	FindDeviceDriver
+	pop		di
+	pop		es
+	jc		.NotLoaded
+	PrintMessage	AlreadyRunning
+	stc
+	jmp		.Finished
+.NotLoaded:
+
+	push		es
+	push		di
 
 	; parse driver "command line" options
 	les		di, [es:di+tREQUEST.CommandLine]
@@ -660,6 +671,11 @@ Initialize:
 .Success:
 	PrintStatus	cs
 	PrintMessage	Activated
+	%ifdef DEBUG
+		PrintMessage	NewLine
+		PrintMessage 	LoadSeg
+		WordAsHex 	cs
+	%endif
 	clc
 	jmp		.Finished
 
@@ -869,6 +885,9 @@ NotActivated:
 Activated:
 	db	'Boot message logging enabled.$'
 
+AlreadyRunning:
+	db	'Logger device drive is already loaded.'
+
 NewLine:
 	db 	0x0d,0x0a,'$'
 
@@ -877,3 +896,8 @@ DefaultOptions:
 
 HadOption:
 	db	0
+
+%ifdef DEBUG
+LoadSeg:
+	db	'Driver loaded at segment: $'
+%endif

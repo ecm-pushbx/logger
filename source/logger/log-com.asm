@@ -170,8 +170,23 @@ OptionTable:
 ;	db		'SNAPSHOT', 0
 ;	dw 		Option_HotKey
 ;	db		'HOTKEY', 0
+%ifdef DEBUG
+	dw		Option_Debug
+	db		'DEBUG',0
+%endif
 	dw		0,Option_Bad ; catch all
 
+; -----------------------------------------------------------------------------
+%ifdef DEBUG
+Option_Debug:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
+	push		es
+	mov		es, [DriverSeg]
+	DebugStatus	es
+	pop		es
+	jmp		Option_Done
+%endif
 ; -----------------------------------------------------------------------------
 
 Option_Help:

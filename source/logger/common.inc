@@ -37,6 +37,8 @@
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
+%idefine DEBUG
+
 ; -----------------------------------------------------------------------------
 %imacro CopyrightText 0
 	db	'Copyright (c)',0x20
@@ -138,7 +140,7 @@ endstruc
 ; -----------------------------------------------------------------------------
 
 %imacro FindDeviceDriver 0
-; Not perfect, but good enough for now.
+; Not perfect or fast, But good enough for now.
 PROC_FindDeviceDriver:
 	mov		bx, 0x0100
 	mov		dx, ds
@@ -147,7 +149,11 @@ PROC_FindDeviceDriver:
 	push		bx
 	pop		es
 	mov		di, 0x09
-	mov		si, DriverID
+	%ifdef		DEVICE_DRIVER
+		mov	si, TDriverHeader.Name
+	%else
+		mov	si, DriverID
+	%endif
 	mov		cx, DriverIDLength
 %%Comparing:
 	inc		di
@@ -158,13 +164,16 @@ PROC_FindDeviceDriver:
 	inc		di
 	; matched driver id string
 	; check request pointer and interface pointer segments
-	cmp		[es:di+2], word -1 ; -1 then driver is not initialized
-	je		%%Next		   ; probably left over garbage
+	mov		ax, [es:di]	   ; -1 then driver is not initialized
+	and		ax, [es:di+2]	   ; probably left over garbage and
+	cmp		ax, -1		   ; we need to keep looking
+	je		%%Next
 	clc
 	jmp		%%Done
 %%Next:
 	inc		bx
 	cmp		bx, dx
+	je		%%Next
 	jb		%%CheckFailed
 	cmp		bx, 0xa000
 	jae		%%CheckFailed
@@ -230,6 +239,40 @@ PROC_NibbleAsHex:
 		pop	ax
 	%endif
 
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%macro INTERNAL_ByteAsBin 0
+PROC_ByteAsBin:
+	push		cx
+	push		ax
+	mov		cl, 0x08
+%%Loop:
+	test		al, 0x80
+	jz		%%Zero
+	ByteAsChar	'1'
+	jmp		%%Next
+%%Zero:
+	ByteAsChar	'0'
+%%Next:
+	shl		al, 1
+	loop		%%Loop
+	pop		ax
+	pop		cx
+	ret
+%endmacro
+
+%imacro ByteAsBin 1
+	%define NEED_ByteAsBin
+	%ifnidni %1, al
+		push	ax
+		mov	al, %1
+	%endif
+	call	PROC_ByteAsBin
+	%ifnidni %1, al
+		pop	ax
+	%endif
 %endmacro
 
 ; -----------------------------------------------------------------------------
@@ -669,6 +712,60 @@ PROC_ParseOptions:
 %endmacro
 
 ; -----------------------------------------------------------------------------
+%imacro DebugStatus 1
+	push	  	dx
+	push		ax
+	PrintMessage 	%%DriverSeg
+	WordAsHex 	%1
+	PrintMessage 	%%EOL
+	PrintMessage 	%%PreStat
+	ByteAsBin 	[OrgStat]
+	ByteAsChar	'/'
+	ByteAsBin 	[es:TDriverHeader.Status]
+	PrintMessage 	%%EOL
+	PrintMessage 	%%PreDriver
+	WordAsHex 	[es:TDriverHeader.XMS.Driver+2]
+	ByteAsChar	':'
+	WordAsHex 	[es:TDriverHeader.XMS.Driver]
+	PrintMessage 	%%EOL
+	PrintMessage 	%%PreXMSKB
+	WordAsHex 	[es:TDriverHeader.XMS.Size]
+	PrintMessage 	%%EOL
+	PrintMessage 	%%PreXMSMax
+	WordAsHex 	[es:TDriverHeader.XMS.Max+2], [es:TDriverHeader.XMS.Max]
+	PrintMessage 	%%EOL
+%ifdef	NO_SPLIT_SEND				; top unused buffer byte
+	PrintMessage 	%%PreXMSTop
+	WordAsHex 	[es:TDriverHeader.XMS.Top+2], [es:TDriverHeader.XMS.Top]
+	PrintMessage 	%%EOL
+%endif						; wrapping, only whole sends
+	PrintMessage 	%%PreXMSCount
+	WordAsHex 	[es:TDriverHeader.XMS.Count+2], [es:TDriverHeader.XMS.Count]
+	PrintMessage 	%%EOL
+	PrintMessage 	%%PreXMSHead
+	WordAsHex 	[es:TDriverHeader.XMS.Head+2], [es:TDriverHeader.XMS.Head]
+	PrintMessage 	%%EOL
+	PrintMessage 	%%PreXMSTail
+	WordAsHex 	[es:TDriverHeader.XMS.Tail+2], [es:TDriverHeader.XMS.Tail]
+	PrintMessage 	%%EOL
+	pop		ax
+	pop		dx
+	jmp		%%Over
+%%DriverSeg:	db	'DRIVER SEG: $'
+%%PreStat:	db	'STATUS:     $'
+%%PreDriver:	db	'DRIVER XMS: $'
+%%PreXMSKB:	db	'ALLOCATED:  $'
+%%PreXMSMax:	db	'MAX:        $'
+%%PreXMSCount:	db	'COUNT:      $'
+%%PreXMSTop:	db	'TOP:        $'
+%%PreXMSHead:	db	'HEAD:       $'
+%%PreXMSTail:	db	'TAIL:       $'
+
+%%EOL:		db	0x0d,0x0a,'$'
+%%Over:
+%endmacro
+
+
 
 %imacro ConditionalCode 1
 	%ifdef NEED_%1
@@ -684,5 +781,6 @@ PROC_ParseOptions:
 	ConditionalCode	WordAsInt
 	ConditionalCode	WordAsHex
 	ConditionalCode	ByteAsHex
+	ConditionalCode	ByteAsBin
 	ConditionalCode	NibbleAsHex
 %endmacro
