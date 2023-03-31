@@ -110,16 +110,15 @@ SendToXMS:
 	ret
 
 .CheckTail:
-	; if TAIL < HEAD it might be good
-	cmp		dx, [Header(XMS.Tail)+2]
-	jb		.OkTail			; write blocks never 64k
-	cmp		ax, [Header(XMS.Tail)]
-	jb		.OkTail
-	; if TAIL > END it might be good
-	cmp		bx, [Header(XMS.Tail)+2]
-	ja		.OkTail
+	cmp		bx, [Header(XMS.Tail)]
+	ja		.MaybeOkTail
 	cmp		cx, [Header(XMS.Tail)]
 	ja		.OkTail
+.MaybeOkTail:
+	cmp		dx, [Header(XMS.Tail)]
+	jb		.OkTail
+	cmp		ax, [Header(XMS.Tail)]
+	jb		.OkTail
 	; Tail was in that range, it is bad
 	; inc		di
 	stc
