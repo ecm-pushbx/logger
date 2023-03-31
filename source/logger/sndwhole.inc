@@ -121,8 +121,11 @@ SendToXMS:
 	cmp		ax, [Header(XMS.Tail)]
 	jb		.OkTail
 	; Tail was in that range, it is bad
-	inc		di
+	; inc		di
+	stc
+	ret
 .OkTail:
+	clc
 	ret
 
 
@@ -141,29 +144,37 @@ SendToXMS:
 	ret
 
 .NoError:
-	xor		di, di
 	call		.BufferHead	; fetch previous HEAD
-	call		.BufferEnd	; would have written to bc:cx
+	call		.BufferEnd	; would have written to dx:ax -> bc:cx
 	call		.CheckTail	; check if was TAIL in proposed range
+	jnc		.CheckActual
+	; move tail to proposed head
+	or		[Header(Status)], word 0x0200
+	mov		[Header(XMS.Tail)], ax
+	mov		[Header(XMS.Tail)+2], dx
 
+.CheckActual:
 	; fetch head used in write HEAD dx:ax and write END bx:cx
 	mov		ax, [Header(XFR.DstAddr)]
 	mov		dx, [Header(XFR.DstAddr)+2]
 	call		.BufferEnd
 	call		.CheckTail	; check if was TAIL in actual range
+	jnc		.CheckNull
+	or		[Header(Status)], word 0x0400
+	; if was tail is in actual write
+	mov		[Header(XMS.Tail)], cx
+	mov		[Header(XMS.Tail)+2], bx
+	jmp		.CheckTop
 
-	test		di, di
-	jnz		.MoveTail
+.CheckNull:
 	mov		ax, [Header(XMS.Tail)]
 	and		ax, [Header(XMS.Tail)+2]
 	cmp		ax, -1
 	jne		.CheckTop
-
-.MoveTail:
-	; tail was overritten, move to previous HEAD
-	call		.BufferHead
+	or		[Header(Status)], word 0x0100
+	xor		ax, ax
 	mov		[Header(XMS.Tail)], ax
-	mov		[Header(XMS.Tail)+2], dx
+	mov		[Header(XMS.Tail)+2], ax
 
 .CheckTop:
 	; set new HEAD from write END bx:cx

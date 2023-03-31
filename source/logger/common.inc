@@ -33,11 +33,12 @@
 ; DO NOT ENABLE "NO_SPLIT_SEND", it is not ready and. I'm not sure if I will
 ; spend time on that method or delete it and keep using buffer splitting.
 
-; %idefine NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
+%define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
-; %idefine DEBUG
+%define DEBUG
+%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
 ; -----------------------------------------------------------------------------
 %imacro CopyrightText 0
@@ -70,6 +71,7 @@
 %idefine ofShowHelp	00010000b	; bit 4 = print help and exit
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 
+
 ; -----------------------------------------------------------------------------
 
 struc TDriverHeader
@@ -98,6 +100,10 @@ struc TDriverHeader
 	.XFR.SrcAddr:	resd 1			; pointer to source buffer
 	.XFR.DstHandle:	resw 1			; XMS handle
 	.XFR.DstAddr:	resd 1			; pointer to destination
+
+%ifdef DEBUG
+	.Debug:		resw DEBUG_DATA_SIZE
+%endif
 
 endstruc
 
@@ -715,6 +721,8 @@ PROC_ParseOptions:
 %imacro DebugStatus 1
 	push	  	dx
 	push		ax
+	push		cx
+	push		bx
 	PrintMessage 	%%DriverSeg
 	WordAsHex 	%1
 	PrintMessage 	%%EOL
@@ -722,6 +730,8 @@ PROC_ParseOptions:
 	ByteAsBin 	[OrgStat]
 	ByteAsChar	'/'
 	ByteAsBin 	[es:TDriverHeader.Status]
+	ByteAsChar	' ', '+', ' '
+	ByteAsHex 	[OrgStat+1]
 	PrintMessage 	%%EOL
 	PrintMessage 	%%PreDriver
 	WordAsHex 	[es:TDriverHeader.XMS.Driver+2]
@@ -748,11 +758,23 @@ PROC_ParseOptions:
 	PrintMessage 	%%PreXMSTail
 	WordAsHex 	[es:TDriverHeader.XMS.Tail+2], [es:TDriverHeader.XMS.Tail]
 	PrintMessage 	%%EOL
+	PrintMessage 	%%PreData
+	mov		cx, DEBUG_DATA_SIZE
+	xor		bx,bx
+%%Loop:
+	WordAsHex	[es:TDriverHeader.Debug+bx]
+	add		bx, 2
+	ByteAsChar	' '
+	loop		%%Loop
+	PrintMessage 	%%EOL
+	pop		bx
+	pop		cx
 	pop		ax
 	pop		dx
 	jmp		%%Over
 %%DriverSeg:	db	'DRIVER SEG: $'
 %%PreStat:	db	'STATUS:     $'
+%%PreData:	db	'DATA:       $'
 %%PreDriver:	db	'DRIVER XMS: $'
 %%PreXMSKB:	db	'ALLOCATED:  $'
 %%PreXMSMax:	db	'MAX:        $'

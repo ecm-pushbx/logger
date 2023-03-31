@@ -163,6 +163,19 @@ SendToXMS:
 	pop		ax
 	pop		dx
 
+	; Check if the tail is in it's invalid initial state of -1.
+	; If so, point it at the first byte in the buffer.
+	cmp		[Header(XMS.Tail)], word -1
+	jne		.TailNotNull
+	cmp		[Header(XMS.Tail)+2], word -1
+	jne		.TailNotNull
+	xor		ax, ax
+	mov		[Header(XMS.Tail)], ax
+	mov		[Header(XMS.Tail)+2], ax
+	; jmp		.NoMoveTail
+	ret
+
+.TailNotNull:
 	; if new (head - 2) is below tail, no need to move
 	cmp		bx, [Header(XMS.Tail)+2]
 	ja		.NoTailMove
@@ -171,9 +184,9 @@ SendToXMS:
 
 	; if old head was above the tail, did not overwrite
 	cmp		dx, [Header(XMS.Tail)+2]
-	ja		.NotOverwriteTail
+	ja		.NoTailMove
 	cmp		ax, [Header(XMS.Tail)]
-	ja		.NotOverwriteTail
+	ja		.NoTailMove
 
 	; we wrote the buffer tail and need to move it to the new head
 	; because head is the next place we will write, so is still
@@ -181,18 +194,6 @@ SendToXMS:
 	mov		ax, [Header(XMS.Head)]
 	mov		[Header(XMS.Tail)], ax
 	mov		ax, [Header(XMS.Head)+2]
-	mov		[Header(XMS.Tail)+2], ax
-	jmp		.NoTailMove
-.NotOverwriteTail:
-	; since we did not overwrite the tail, the tail could be in
-	; it's invalid initial state of -1. If so, point it at the
-	; first byte in the buffer.
-	cmp		[Header(XMS.Tail)], word -1
-	jne		.NoTailMove
-	cmp		[Header(XMS.Tail)+2], word -1
-	jne		.NoTailMove
-	xor		ax, ax
-	mov		[Header(XMS.Tail)], ax
 	mov		[Header(XMS.Tail)+2], ax
 
 .NoTailMove:

@@ -121,7 +121,11 @@ DriverFound:
 	jnz		.HadOptions
 
 	; empty command line, perform default function
-	call		Option_Print
+	%ifdef		DEBUG
+		call	Option_Debug
+	%else
+		call		Option_Print
+	%endif
 
 .HadOptions:
 	; check if we should set driver to enabled/disabled state, or stay off
@@ -181,6 +185,7 @@ OptionTable:
 Option_Debug:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
+	or		[Flags], byte ofKeepStatus
 	push		es
 	mov		es, [DriverSeg]
 	DebugStatus	es
@@ -251,6 +256,18 @@ Option_Clear:
 	mov		[es:Header(XMS.Count)+2], ax	; 0
 	mov		[es:Header(XMS.Head)], ax	; 0
 	mov		[es:Header(XMS.Head)+2], ax	; 0
+	%ifdef	NO_SPLIT_SEND
+		mov		[es:Header(XMS.Top)], ax	; 0
+		mov		[es:Header(XMS.Top)+2], ax	; 0
+	%endif
+	%ifdef  DEBUG
+		mov		cx, DEBUG_DATA_SIZE
+		xor		bx, bx
+	.ClearDebug:
+		mov		[es:Header(Debug)+bx], ax
+		add		bx, 2
+		loop		.ClearDebug
+	%endif
 	dec		ax
 	mov		[es:Header(XMS.Tail)], ax	; -1
 	mov		[es:Header(XMS.Tail)+2], ax	; -1
