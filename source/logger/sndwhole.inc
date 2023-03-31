@@ -110,20 +110,20 @@ SendToXMS:
 	ret
 
 .CheckTail:
-	or		[Header(Debug)+4], word 1
+	or		[Header(DebugData)], word 1
 	cmp		bx, [Header(XMS.Tail)]
 	ja		.MaybeOkTail
-	or		[Header(Debug)+4], word 2
+	or		[Header(DebugData)], word 2
 	cmp		cx, [Header(XMS.Tail)]
 	ja		.OkTail
 .MaybeOkTail:
-	or		[Header(Debug)+4], word 4
+	or		[Header(DebugData)], word 4
 	cmp		dx, [Header(XMS.Tail)]
 	jb		.OkTail
-	or		[Header(Debug)+4], word 8
+	or		[Header(DebugData)], word 8
 	cmp		ax, [Header(XMS.Tail)]
 	jb		.OkTail
-	or		[Header(Debug)+4], word 0x10
+	or		[Header(DebugData)], word 0x10
 	; Tail was in that range, it is bad
 	; inc		di
 	stc
@@ -151,8 +151,8 @@ SendToXMS:
 	call		.BufferHead	; fetch previous HEAD
 	call		.BufferEnd	; would have written to dx:ax -> bc:cx
 	%ifdef DEBUG
-		mov	[Header(Debug)], ax
-		mov	[Header(Debug)+2], cx
+		mov	[Header(DebugData)+2], ax
+		mov	[Header(DebugData)+4], cx
 	%endif
 	call		.CheckTail	; check if was TAIL in proposed range
 	jnc		.CheckActual
@@ -167,8 +167,8 @@ SendToXMS:
 	mov		dx, [Header(XFR.DstAddr)+2]
 	call		.BufferEnd
 	%ifdef DEBUG
-		mov	[Header(Debug)], ax
-		mov	[Header(Debug)+2], cx
+		mov	[Header(DebugData)+6], ax
+		mov	[Header(DebugData)+8], cx
 	%endif
 	call		.CheckTail	; check if was TAIL in actual range
 	jnc		.CheckNull

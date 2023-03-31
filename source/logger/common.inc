@@ -102,7 +102,7 @@ struc TDriverHeader
 	.XFR.DstAddr:	resd 1			; pointer to destination
 
 %ifdef DEBUG
-	.Debug:		resw DEBUG_DATA_SIZE
+	.DebugData:	resw DEBUG_DATA_SIZE
 %endif
 
 endstruc
@@ -762,7 +762,8 @@ PROC_ParseOptions:
 	mov		cx, DEBUG_DATA_SIZE
 	xor		bx,bx
 %%Loop:
-	WordAsHex	[es:TDriverHeader.Debug+bx]
+	mov		ax, [es:TDriverHeader.DebugData+bx]
+	WordAsHex	ax
 	add		bx, 2
 	ByteAsChar	' '
 	loop		%%Loop
