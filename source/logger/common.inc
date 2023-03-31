@@ -144,6 +144,14 @@ endstruc
 %endmacro
 
 ; -----------------------------------------------------------------------------
+%imacro CMPDD	3
+	cmp 	%1, [%3+2]
+	jne	%%Done
+	cmp	%2, [%3]
+%%Done:
+%endmacro
+
+; -----------------------------------------------------------------------------
 
 %imacro FindDeviceDriver 0
 ; Not perfect or fast, But good enough for now.

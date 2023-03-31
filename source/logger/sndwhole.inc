@@ -60,9 +60,7 @@ SendToXMS:
 	call		.BufferEnd
 
 	; does it extend past buffer end and need wrapped?
-	cmp		bx, [Header(XMS.Max)+2]
-	jb		.OkToSend
-	cmp		cx, [Header(XMS.Max)]
+	cmpdd		bx, cx, Header(XMS.Max)
 	jb		.OkToSend
 
 	; Send won't fit, buffer is full
@@ -154,14 +152,10 @@ SendToXMS:
 
 .CheckPushTail:
 	; not wrapped or just starting to write, check if tail needs pushed
-	cmp		bx, [Header(XMS.Tail)+2]
-	jb		.MaybePushTail
-	cmp		cx, [Header(XMS.Tail)]
+	cmpdd		bx, cx, Header(XMS.Tail)
 	jb		.CheckTop
 .MaybePushTail:
-	cmp		dx, [Header(XMS.Tail)+2]
-	ja		.CheckTop
-	cmp		ax, [Header(XMS.Tail)]
+	cmpdd		dx, ax, Header(XMS.Tail)
 	ja		.CheckTop
 .PushTail:
 	; TAIL was over-written or we wrapped, adjust to end of write
@@ -169,16 +163,13 @@ SendToXMS:
 	mov		[Header(XMS.Tail)+2], bx
 
 .CheckTop:
-
 	; set new HEAD from write END bx:cx
 	mov		[Header(XMS.Head)], cx
 	mov		[Header(XMS.Head)+2], bx
 
 	; if write END > TOP, adjust TOP to write END
-	cmp		bx, [Header(XMS.Top)+2]
+	cmpdd		bx, cx, Header(XMS.Top)
 	jb		.NoAdjustTop
-	cmp		cx, [Header(XMS.Top)]
-	jbe		.NoAdjustTop
 	mov		[Header(XMS.Top)], cx
 	mov		[Header(XMS.Top)+2], bx
 .NoAdjustTop:
