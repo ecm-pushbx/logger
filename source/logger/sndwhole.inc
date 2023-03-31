@@ -30,6 +30,14 @@
 
 ; NASM 2.15.05, or later
 
+; -----------------------------------------------------------------------------
+; When NO_SLIT_SEND is defined, this code is used to transfer the buffer to log
+; storage. It will only send the entire buffer at once. If there is not
+; sufficient storage and sfLogJAM is not enabled. It will move to the first
+; storage location in the buffer and write the contents there. If sfLogHAM is
+; enabled. It will just stop and disable logging.
+; -----------------------------------------------------------------------------
+
 SendToXMS:
 	; if send buffer is empty, we are done
 	cmp		[Header(XFR.Count)], word 0

@@ -30,6 +30,13 @@
 
 ; NASM 2.15.05, or later
 
+; -----------------------------------------------------------------------------
+; When NO_SLIT_SEND is not defined, this code is used to transfer the buffer
+; to log storage. It will split the buffer if there is not sufficient storage.
+; If sfLogJAM is not enabled, any portion that needed split off will be written
+; at the first storage location in the log buffer as it wraps.
+; -----------------------------------------------------------------------------
+
 SendToXMS:
 	cmp		[Header(XFR.Count)], word 0
 	je		.NoLogData
