@@ -16,17 +16,21 @@ Options that will return logging to its previous state:
 	VERSION		Display version information.
 	HELP		Display this help text.
 	STATUS		Display some status information about the driver.
+	VIEW		View the log.
+	MESSAGE text	Add the remaining command line as text to the log.
 
 LOGGER always disables logging when executed. Based on the options provided on
 the command line, logging may or may not be enabled when the program finishes
-interfacing with the device driver. The default behaviour can be overriden by
+interfacing with the device driver. That default behaviour can be overriden by
 using the OFF and ON options.
 
-Probable upcoming options:
+Any text waiting standard input buffer, will automatically be added to the Log.
 
-	MSG text	Add the remaining command line as text to the log.
-	STDIN		Add text from STDIN to the log.
-	VIEW		View the log.
+If no options are provided and there is no standard input waiting, the default
+behaviour is to VIEW the log.
+
+Possible upcoming option:
+
 	SNAPSHOT	Store a snapshot of the screen in the log.
 	HOTKEY key	Set/change a keyboard shortcut for taking snapshots.
 

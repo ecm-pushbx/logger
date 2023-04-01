@@ -33,11 +33,11 @@
 ; DO NOT ENABLE "NO_SPLIT_SEND", it is not ready and. I'm not sure if I will
 ; spend time on that method or delete it and keep using buffer splitting.
 
-%define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
+;%define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
-; %define DEBUG
+;%define DEBUG
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
 ; -----------------------------------------------------------------------------
@@ -45,6 +45,8 @@
 %ifndef	NO_SPLIT_SEND
 	%define SPLIT_SEND
 %endif
+
+%define MaxXFRSize  80 * 2
 
 ; -----------------------------------------------------------------------------
 
@@ -76,6 +78,7 @@
 %idefine ofColorPrint	00000100b	; bit 2 = MONO/ANSI printing selected
 %idefine ofShowVersion  00001000b	; bit 3 = print version information
 %idefine ofShowHelp	00010000b	; bit 4 = print help and exit
+%idefine ofStdIn	00100000b	; but 5 = standard input added to log
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 
 
@@ -92,6 +95,8 @@ struc TDriverHeader
 
 	.Status:	resw 1			; Device driver Status
 
+	.Flush		resd 1			; far call to flush send buffer
+
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
 	.XMS.Size:	resw 1			; Size in KB to allocate
 	.XMS.Head:	resd 1			; next buffer write position
@@ -107,6 +112,9 @@ struc TDriverHeader
 	.XFR.SrcAddr:	resd 1			; pointer to source buffer
 	.XFR.DstHandle:	resw 1			; XMS handle
 	.XFR.DstAddr:	resd 1			; pointer to destination
+
+	.XFR.Buffer:	resb MaxXFRSize + 4	; TTL XFR Buffer, plus room to
+						; tack on a color CRLF sequence
 
 %ifdef DEBUG_DATA_SIZE
 	.DebugData:	resw DEBUG_DATA_SIZE
@@ -733,6 +741,7 @@ PROC_ParseOptions:
 %endmacro
 
 ; -----------------------------------------------------------------------------
+
 %imacro DebugStatus 1
 	push	  	dx
 	push		ax
@@ -805,6 +814,39 @@ PROC_ParseOptions:
 %%Over:
 %endmacro
 
+; -----------------------------------------------------------------------------
+
+%macro INTERNAL_StdIn 0
+PROC_StdIn:
+	push		dx
+	push		ax
+	mov		ah, 0x0b
+	int		0x21
+	cmp		al, 0
+	je		%%NoInput
+	mov		ah, 0x08
+	int		0x21
+	clc
+	jmp		%%Done
+%%NoInput:
+	xor		al, al
+	stc
+%%Done:
+	mov		dl, al
+	pop		ax
+	mov		al, dl
+	pop		dx
+	ret
+	; CY set, no input al=0
+	; CY clear, al=
+%endmacro
+
+%imacro StdIn 0
+	%define NEED_StdIn
+	call	PROC_StdIn
+%endmacro
+
+; -----------------------------------------------------------------------------
 
 
 %imacro ConditionalCode 1
@@ -818,6 +860,7 @@ PROC_ParseOptions:
 
 %imacro CommonCode 0
 	ConditionalCode	ParseOptions
+	ConditionalCode StdIn
 	ConditionalCode	WordAsInt
 	ConditionalCode	WordAsHex
 	ConditionalCode	ByteAsHex

@@ -83,6 +83,9 @@ istruc TDriverHeader
 						; so when enabled, video
 						; settings will get initialized
 
+	at .Flush,		dd FlushBuffer	; Function to Flush the current
+						; buffer to Log storage.
+
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw 32		; Default KB size to allocate
 	at .XMS.Head,		dd 0		; next buffer write position
@@ -100,16 +103,14 @@ istruc TDriverHeader
 	at .XFR.DstHandle,	dw -1		; XMS handle
 	at .XFR.DstAddr,	dd 0		; pointer to destination
 
+	at .XFR.Buffer,		db 0		; TTL XFR Buffer of MaxXFRSize + 4
+
 iend
 ; -----------------------------------------------------------------------------
 
 %define Header(x) DriverHeader + TDriverHeader. %+ x
-%define MaxTTLSize  80 * 2
 
 ; -----------------------------------------------------------------------------
-; Other data private data
-
-XfrTTLBuffer:	times MaxTTLSize db 0		; TTL Buffer
 
 BIOSInt10:		dd -1			; Original BIOS Int 10
 LastCaptured:		dw -1			; Last Screen Row Logged
@@ -186,7 +187,7 @@ DevInt10:
 	jmp		.SetMethodDone
 .SetTTLMethod:
 	mov		[Header(XFR.Count)], word 0 ; don't worry about high word
-	mov		[Header(XFR.SrcAddr)], word XfrTTLBuffer
+	mov		[Header(XFR.SrcAddr)], word Header(XFR.Buffer)
 	mov		[Header(XFR.SrcAddr)+2], cs
 .SetMethodDone:
 	pop		ax
@@ -197,36 +198,25 @@ DevInt10:
 	test		[Header(Status)], byte sfDirectMode ; direct method flag
 	jnz		.CaptureDirect
 	; simple TTL capture
-	cmp		ah, 0x0e
+	cmp		ah, 0x0e		; BIOS TTL function 0x0e
 	jne		.AdjustNone
 	push		di
 	; bh = page, for now don't care
 	mov		di, [Header(XFR.Count)]
-	mov		[XfrTTLBuffer+di], al	; character
+	mov		[Header(XFR.Buffer)+di], al	; character
 	inc		di
 	test		[Header(Status)], byte sfInColor
 	jz		.NoColorAttrib
-	mov		[XfrTTLBuffer+di], bl	; attribute
+	mov		[Header(XFR.Buffer)+di], bl	; attribute
 	inc		di
 .NoColorAttrib:
 	mov		[Header(XFR.Count)], di
-	cmp		di, MaxTTLSize		; send if TTL buffer is full
+	cmp		di, MaxXFRSize		; send if TTL buffer is full
 	pop		di
 	je		.SendTTLBuffer
 	cmp		al, 0x0a		; also send on LF
 	jne		.AdjustNone
 .SendTTLBuffer:
-	; In case mono capture, make sure we have an even number of bytes
-	test		[Header(XFR.Count)], byte 1
-	jz		.SendTTLNow
-	; if not, then slap a zero on the end
-	push		di
-	mov		di, [Header(XFR.Count)]
-	mov		[XfrTTLBuffer+di], byte 0
-	inc		di
-	mov		[Header(XFR.Count)], di
-	pop		di
-.SendTTLNow:
 	call		SendToLog
 	jmp		.AdjustNone
 
@@ -255,10 +245,24 @@ DevInt10:
 	popf
 	jmp		far [cs:BIOSInt10]
 
+FlushBuffer:
+	; far call to send buffer contents to Log storage. It is not effected
+	; by driver enabled state.
+	pushf
+	push		ds
+	push		cs
+	pop		ds
+	call		SendToLog
+	pop		ds
+	popf
+	retf
+
 ; -----------------------------------------------------------------------------
 
 SendToLog:
 	; if send buffer is empty, we are done
+	cmp		[Header(XFR.Count)+2], word 0
+	jne		.TestFull
 	cmp		[Header(XFR.Count)], word 0
 	jne		.TestFull
 	ret
@@ -275,6 +279,23 @@ SendToLog:
 .NeedToSend:
 
 	pushag		; like pusha
+
+	; make sure we have an even number of bytes
+	test		[Header(XFR.Count)], byte 1
+	jz		.EvenBytes
+	; if not, then slap a zero on the end, assume send buffer is Driver's
+	; buffer.
+	;push		es
+	;mov		es, [Header(XFR.SrcAddr)+ 2]
+	mov		di, [Header(XFR.SrcAddr)]
+	mov		bx, [Header(XFR.Count)]
+	mov		[di+bx], byte 0
+	; mov		[es:di+bx], byte 0
+	inc		bx
+	mov		[Header(XFR.Count)], bx
+	; pop		es
+.EvenBytes:
+
 	call		.BufferHead
 	call		.BufferEnd
 
@@ -495,6 +516,7 @@ Initialize:
 	jmp		.Finished
 .NotLoaded:
 
+	mov		[Header(Flush)+2], cs; set far call segment for Flush
 	push		es
 	push		di
 
@@ -726,6 +748,11 @@ CommonCode
 
 ; -----------------------------------------------------------------------------
 
+%ifdef DEBUG
+LoadSeg:
+	db	'Driver loaded at segment: $'
+%endif
+
 Banner:
 	db	0x0d,0x0a
 	db	'System Boot Message Logger, v0.1',0x0d,0x0a
@@ -766,8 +793,3 @@ DefaultOptions:
 
 HadOption:
 	db	0
-
-%ifdef DEBUG
-LoadSeg:
-	db	'Driver loaded at segment: $'
-%endif

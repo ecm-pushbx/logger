@@ -91,6 +91,7 @@ DieXMSError:
 
 DriverFound:
 	mov		[DriverSeg], es
+
 	; save driver status
 	mov		ax, [es:Header(Status)]
 	mov		[OrgStat], ax
@@ -98,6 +99,22 @@ DriverFound:
 	; disable driver
 	and		al , 0xfe			; Not sfEnabled bit flag
 	mov		[es:Header(Status)], ax
+
+	; make sure buffer contents have been written.
+	call		far [es:Header(Flush)]
+
+	; send any standard input text to Log
+	StdIn
+	jc		.NoStdInput
+	or		[Flags], byte ofStdIn
+	mov		ah, 0x47
+.LoopStdIn:
+	call		AppendBuffer
+	StdIn
+	jnc		.LoopStdIn
+	call		far [es:Header(Flush)]
+
+.NoStdInput:
 
 	; test for special help or version request
 	test		[Flags], byte ofShowHelp
@@ -120,11 +137,14 @@ DriverFound:
 	test		[Flags], byte ofHadOptions
 	jnz		.HadOptions
 
+	; if there was StdIn added to the Log, do not default to viewer
+	test		[Flags], byte ofStdIn
+	jnz		.HadOptions
 	; empty command line, perform default function
 	%ifdef		DEBUG
 		call	Option_Debug
 	%else
-		call		Option_Print
+		call	Option_View
 	%endif
 
 .HadOptions:
@@ -164,12 +184,14 @@ OptionTable:
 	db		'PRINT', 0
 	dw		Option_Ansi
 	db	 	'ANSI', 0
-;	dw		Option_Msg
-;	db	 	'MSG', 0
+	dw		Option_Msg
+	db	 	'MESSAGE', 0
+	dw		Option_Msg
+	db	 	'MSG', 0
+	dw		Option_View
+	db	 	'VIEW', 0
 ;	dw		Option_StdIn
 ;	db	 	'STDIN', 0
-;	dw		Option_View
-;	db	 	'VIEW', 0
 ;	dw 		Option_SnapShot
 ;	db		'SNAPSHOT', 0
 ;	dw 		Option_HotKey
@@ -300,24 +322,81 @@ Option_Ansi:
 
 ; -----------------------------------------------------------------------------
 
-;Option_View:
-;	test		[Flags], byte ofPreTest
-;	jnz		Option_Done
-;	jmp		Option_Done
+Option_View:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
+	mov		ax,[es:Header(XMS.Count)]
+	or		ax,[es:Header(XMS.Count)+2]
+	test		ax, ax
+	jnz		.NotEmpty
+	PrintMessage 	LogEmpty
+	jmp		Option_Done
+.NotEmpty:
+
+	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
-;Option_Msg:
-;	test		[Flags], byte ofPreTest
-;	jnz		Option_IgnoreRest
-;	jmp		Option_IgnoreRest
+Option_Msg:
+	test		[Flags], byte ofPreTest
+	jnz		Option_IgnoreRest
+	; pushf		; shouldn't need this
+	; cli
+	or		[Flags], byte ofKeepStatus
+	call		FlushBuffer  ; should already be empty, but won't hurt
+	cld
+	mov		ah, 0x07
+	jmp		.SkipIndent
+.SkipChar:
+	inc		di
+.SkipIndent:
+	cmp		[es:di], byte 0x20
+	je		.SkipChar
+.NextChar:
+	mov		al, [es:di]
+	inc		di
+	call		AppendBuffer
+	cmp		al, 0x20
+	jb		.AppendDone
+	jmp		.NextChar
+.AppendDone:
+	cmp		al, 0x0d
+	jne		.SkipLF
+	mov		al, 0x0a
+	call		AppendBuffer
+.SkipLF:
+	call		FlushBuffer
+.Done:
+	; popf
+	jmp		Option_Done
 
-; -----------------------------------------------------------------------------
+AppendBuffer:
+	push		es
+	push		di
+	mov		es, [DriverSeg]
+	mov		di, [es:Header(XFR.Count)]
+	mov		[es:Header(XFR.Buffer)+di], al	; character
+	inc		di
+	test		[es:Header(Status)], byte sfInColor
+	jz		.NoColorAttrib
+	mov		[es:Header(XFR.Buffer)+di], ah	; attribute
+	inc		di
+.NoColorAttrib:
+	mov		[es:Header(XFR.Count)], di
+	cmp		di, MaxXFRSize		; send if TTL buffer is full
+	jne		.Done
+	call		FlushBuffer
+.Done:
+	pop		di
+	pop		es
+	ret
 
-;Option_StdIn:
-;	test		[Flags], byte ofPreTest
-;	jnz		Option_Done
-;	jmp		Option_Done
+FlushBuffer:
+	push		es
+	mov		es, [DriverSeg]
+	call		far [es:Header(Flush)]
+	pop		es
+	ret
 
 ; -----------------------------------------------------------------------------
 
@@ -603,3 +682,9 @@ XFR:
 	.DstAddr:	resd 1		; pointer to destination
 
 Buffer:			resw Buffer_Size; Transfer Buffer
+
+CursorXY:
+	resw 1
+
+ScreenSave:
+
