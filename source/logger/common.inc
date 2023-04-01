@@ -37,10 +37,17 @@
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
-%define DEBUG
+; %define DEBUG
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
 ; -----------------------------------------------------------------------------
+
+%ifndef	NO_SPLIT_SEND
+	%define SPLIT_SEND
+%endif
+
+; -----------------------------------------------------------------------------
+
 %imacro CopyrightText 0
 	db	'Copyright (c)',0x20
 	db 	%substr(__DATE__,1,4), ',', 0x20

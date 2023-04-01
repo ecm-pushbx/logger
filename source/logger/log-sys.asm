@@ -89,6 +89,7 @@ istruc TDriverHeader
 	at .XMS.Tail,		dd -1		; first buffer read position
 	at .XMS.Count,		dd 0		; bytes in buffer
 	at .XMS.Max,		dd 0 		; size of buffer in bytes
+
 %ifdef	NO_SPLIT_SEND
 	at .XMS.Top,		dd 0		; top unused buffer byte
 %endif
@@ -287,9 +288,11 @@ SendToLog:
 	jz		.NoLogJam
 	and		[Header(Status)], byte 11111110b	; not sfEnabled
 	jmp		.SendDone
+
 .NoLogJam:
 	; YAY, we are allowed to wrap buffer
 
+%ifdef NO_SPLIT_SEND
 	; move TOP pointer to current HEAD dx:ax
 	mov		[Header(XMS.Top)], ax
 	mov		[Header(XMS.Top)+2], dx
@@ -297,6 +300,44 @@ SendToLog:
 	; move HEAD to buffer origin
 	xor		ax, ax
 	xor		dx, dx
+
+%else
+	; ok we need to split the buffer and send it in two pieces
+
+	; calculate distance from HEAD dx:ax to MAX for first send
+	mov		bx, ax
+	mov		cx, [Header(XMS.Max)]	; MAX is greater than HEAD
+	sub		bx, cx			; so, don't care about borrow
+
+	; bytes not in first send will go into second send
+	mov		cx, bx
+	sub		cx, [si]
+
+	; save size of first & second send for later
+	push		bx
+	push		cx
+
+	; set buffer count for first part and send
+	mov		[si], bx
+	call		.SendBuffer
+
+	; restore size of first and second SendToLog
+	pop		cx
+	pop		bx
+
+	; set buffer count for second part and move HEAD
+	mov		[si], cx
+	xor		ax, ax
+	xor		dx, dx
+
+	; temporary adjust send buffer offset for part two and send
+	push		bx	; we will restore it after call
+	add		[Header(XFR.SrcAddr)], bx ; adjust send buffer
+	call		.SendBuffer
+	pop		bx
+	sub		[Header(XFR.SrcAddr)], bx ; fix send buffer
+	jmp		.SendDone
+%endif
 
 .OkToSend:
 	call		.SendBuffer
@@ -358,13 +399,16 @@ SendToLog:
 	pop		ax
 	jmp		.CheckTop
 .WrapAdjust:
-	; we just buffer wrapped, adjust to old HEAD
+	; we just buffer wrapped, adjust to TOP old HEAD
+%ifdef NO_SPLIT_SEND
 	push		dx
 	call		.BufferHead
 	mov		[Header(XMS.Top)], ax
 	mov		[Header(XMS.Top)+2], dx
 	pop		dx
-.WrapAdjustDone:
+%else
+	; with split buffer, no TOP and MAX never changes
+%endif
 	pop		ax
 	jmp		.PushTail
 
@@ -385,12 +429,16 @@ SendToLog:
 	mov		[Header(XMS.Head)], cx
 	mov		[Header(XMS.Head)+2], bx
 
+%ifdef NO_SPLIT_SEND
 	; if write END > TOP, adjust TOP to write END
 	cmpdd		bx, cx, Header(XMS.Top)
 	jb		.NoAdjustTop
 	mov		[Header(XMS.Top)], cx
 	mov		[Header(XMS.Top)+2], bx
 .NoAdjustTop:
+%else
+	; with split buffer, end cannot be past MAX
+%endif
 
 	; update total byte count written to buffer
 	mov		ax, [si]
