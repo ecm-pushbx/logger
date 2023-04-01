@@ -226,7 +226,7 @@ DevInt10:
 	mov		[Header(XFR.Count)], di
 	pop		di
 .SendTTLNow:
-	call		SendToXMS
+	call		SendToLog
 	jmp		.AdjustNone
 
 .CaptureDirect:
@@ -241,7 +241,7 @@ DevInt10:
 	test		ah, ah
 	jnz		.AdjustNone
 .AdjustModeChange:
-	call		SendToXMS
+	call		SendToLog
 	or		[Header(Status)], byte sfModeChange ; set flag
 	jmp		.AdjustNone
 .AdjustScroll:
@@ -255,11 +255,152 @@ DevInt10:
 	jmp		far [cs:BIOSInt10]
 
 ; -----------------------------------------------------------------------------
-%ifdef	NO_SPLIT_SEND
-	%include 'sndwhole.inc'
-%else
-	%include 'sndsplit.inc'
-%endif
+
+SendToLog:
+	; if send buffer is empty, we are done
+	cmp		[Header(XFR.Count)], word 0
+	jne		.TestFull
+	ret
+
+.TestFull:
+	; test if sfLogJam (stop when full) bit is set (only set by driver when
+	; it is initialized) and if the Log is now Full (always once wraps)
+	test 		[Header(Status)], byte sfLogJam
+	jz		.NeedToSend
+	test 		[Header(Status)], byte sfLogFull
+	jnz		.DoNotSend
+	ret
+
+.NeedToSend:
+
+	pushag		; like pusha
+	call		.BufferHead
+	call		.BufferEnd
+
+	; does it extend past buffer end and need wrapped?
+	cmpdd		bx, cx, Header(XMS.Max)
+	jb		.OkToSend
+
+	; Send won't fit, buffer is full
+	or		[Header(Status)], byte sfLogFull
+	test 		[Header(Status)], byte sfLogJam
+	jz		.NoLogJam
+	and		[Header(Status)], byte 11111110b	; not sfEnabled
+	jmp		.SendDone
+.NoLogJam:
+	; YAY, we are allowed to wrap buffer
+
+	; move TOP pointer to current HEAD dx:ax
+	mov		[Header(XMS.Top)], ax
+	mov		[Header(XMS.Top)+2], dx
+
+	; move HEAD to buffer origin
+	xor		ax, ax
+	xor		dx, dx
+
+.OkToSend:
+	call		.SendBuffer
+
+.SendDone:
+	popag		; like popa
+.DoNotSend:
+	mov		[Header(XFR.Count)], word 0
+	ret
+
+.BufferHead:
+	mov		ax, [Header(XMS.Head)]
+	mov		dx, [Header(XMS.Head)+2]
+	ret
+
+.BufferEnd:
+	; IN dx:ax = buffer start/head
+	; set SI to first item in XFR record and populate record
+	mov		si, Header(XFR.Count)		; address of XFR block
+	; set bx:cx to end of write position
+	mov		bx, dx		; copy high word of position
+	mov		cx, [si]	; Count
+	add		cx, ax		; add low word of position
+	adc		bx, 0		; inc bx if needed
+
+	; return bx:cx=end, si->count/xfr record
+	ret
+
+.SendBuffer:
+	mov		[Header(XFR.DstAddr)], ax
+	mov		[Header(XFR.DstAddr)+2], dx
+	push		si		; save just in case
+	mov		ah, 0x0b	; func 0x0b, DS:SI->XFR Record
+	call far 	[Header(XMS.Driver)]
+	pop		si
+
+	push		cs		; mov ds, cs - just in case
+	pop		ds
+	test		ax, ax		; test for XMS Error
+	jnz		.NoError	; can't do much about it
+	ret
+
+.NoError:
+	mov		ax, [Header(XFR.DstAddr)]
+	mov		dx, [Header(XFR.DstAddr)+2]
+	call		.BufferEnd
+	test		ax, ax
+	jnz		.CheckPushTail
+	test		dx, dx
+	jnz		.CheckPushTail
+	; wrote to first xms location, means: just started or wrapped
+	push		ax
+	test		[Header(Status)], byte sfLogFull ; only reset on clear
+	jnz		.WrapAdjust
+	; just starting out, so not wrapped, move tail to first word
+	xor		ax, ax
+	mov		[Header(XMS.Tail)], ax
+	mov		[Header(XMS.Tail)+2], ax
+	pop		ax
+	jmp		.CheckTop
+.WrapAdjust:
+	; we just buffer wrapped, adjust to old HEAD
+	push		dx
+	call		.BufferHead
+	mov		[Header(XMS.Top)], ax
+	mov		[Header(XMS.Top)+2], dx
+	pop		dx
+.WrapAdjustDone:
+	pop		ax
+	jmp		.PushTail
+
+.CheckPushTail:
+	; not wrapped or just starting to write, check if tail needs pushed
+	cmpdd		bx, cx, Header(XMS.Tail)
+	jb		.CheckTop
+.MaybePushTail:
+	cmpdd		dx, ax, Header(XMS.Tail)
+	ja		.CheckTop
+.PushTail:
+	; TAIL was over-written or we wrapped, adjust to end of write
+	mov		[Header(XMS.Tail)], cx
+	mov		[Header(XMS.Tail)+2], bx
+
+.CheckTop:
+	; set new HEAD from write END bx:cx
+	mov		[Header(XMS.Head)], cx
+	mov		[Header(XMS.Head)+2], bx
+
+	; if write END > TOP, adjust TOP to write END
+	cmpdd		bx, cx, Header(XMS.Top)
+	jb		.NoAdjustTop
+	mov		[Header(XMS.Top)], cx
+	mov		[Header(XMS.Top)+2], bx
+.NoAdjustTop:
+
+	; update total byte count written to buffer
+	mov		ax, [si]
+	add		[Header(XMS.Count)], ax
+	adc		[Header(XMS.Count)+2], word 0
+	jnc		.NoCountOverflow
+	mov		[Header(XMS.Count)], word 1 ; so it ain't ever 0
+.NoCountOverflow:
+	ret
+
 ; -----------------------------------------------------------------------------
 
 
