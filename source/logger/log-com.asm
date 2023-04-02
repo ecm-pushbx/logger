@@ -330,18 +330,42 @@ Option_Ansi:
 Option_View:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
+	or		[Flags], byte ofKeepStatus
+
+	push		es
+	mov		es, [DriverSeg]
 	mov		ax,[es:Header(XMS.Count)]
 	or		ax,[es:Header(XMS.Count)+2]
 	test		ax, ax
 	jnz		.NotEmpty
+	pop		es
 	PrintMessage 	LogEmpty
 	jmp		Option_Done
 .NotEmpty:
 	push		di
 
 	call		GetVideoSettings
-	jc		.BadMode
+	push		bx			; save video segment for later
+	push		dx			; save regen size in words
+	call		ScreenSave
+	PrintMessage	Banner
 
+	pop		dx			; restore regin size in words
+	pop		bx			; restore video segment
+	call		ScreenRestore
+
+	pop		di
+	pop		es
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+ScreenSave:
+	cmp		[VideoDirect], byte 0
+	jnz		.Supported
+	ret
+.Supported:
+	cld
 	mov		cx, dx
 	push		ds
 	push		es
@@ -354,11 +378,34 @@ Option_View:
 	rep		movsw
 	pop		es
 	pop		ds
-.BadMode:
+	ret
 
-	pop		di
-	jmp		Option_Done
+; -----------------------------------------------------------------------------
 
+ScreenRestore:
+	cmp		[VideoDirect], byte 0
+	jnz		.Supported
+	ret
+.Supported:
+	cld
+	mov		cx, dx
+	push		ds
+	push		es
+	mov		si, VideoRegen
+	mov		di, [VideoData+TVideoData.Offset]
+	push		cs
+	pop		ds
+	push		bx
+	pop		es
+	rep		movsw
+	pop		es
+	pop		ds
+	; restore cursor position
+	mov		bh, [VideoData+TVideoData.Page]
+	call		CursorRestore
+	ret
+
+; -----------------------------------------------------------------------------
 GetVideoSettings:
 	; copy video settings for later
 	push		di
@@ -494,6 +541,18 @@ Option_Snapshot:
 	call		FlushBuffer
 
 	; restore cursor position for page
+	call		CursorRestore
+	; restore di, si, bp
+	pop		di
+	; pop		si	; don't care
+	; pop		bp	; don't care
+
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+CursorRestore:
+	; bh=page
 	push		bx
 	mov		bl, bh
 	xor		bh, bh
@@ -502,13 +561,7 @@ Option_Snapshot:
 	pop		bx
 	mov		ah, 0x02
 	int		0x10
-
-	; restore di, si, bp
-	pop		di
-	; pop		si	; don't care
-	; pop		bp	; don't care
-
-	jmp		Option_Done
+	ret
 
 ; -----------------------------------------------------------------------------
 

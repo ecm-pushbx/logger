@@ -204,11 +204,41 @@ DevInt10:
 	; test capture method
 	test		[Header(Status)], byte sfDirectMode ; direct method flag
 	jnz		.CaptureDirect
-	; simple TTL capture
-	cmp		ah, 0x0e		; BIOS TTL function 0x0e
-	jne		.AdjustNone
-	push		di
+	; if not Direct Capture method, simple BIOS TTL capture
+	cmp		ah, 0x0e
+	jne		.Done
 	; bh = page, for now don't care
+	call		AppendBuffer
+	jmp		.Done
+.CaptureDirect:
+	; Direct Capture Method
+	; call		Capture
+
+	cmp		ah, 0x07	; Scroll Down
+	je		.AdjustScroll
+	cmp		ah, 0x06	; Scroll Up
+	je		.AdjustScroll
+.CheckModeChange:
+	test		ah, ah
+	jnz		.Done
+.AdjustModeChange:
+	call		SendToLog
+	or		[Header(Status)], byte sfModeChange ; set flag
+	jmp		.Done
+.AdjustScroll:
+	test		cx, cx
+	jnz		.AdjustNotFull
+
+.AdjustNotFull:
+.Done:
+	pop		ds
+	popf
+	jmp		far [cs:BIOSInt10]
+
+; -----------------------------------------------------------------------------
+
+AppendBuffer:
+	push		di
 	mov		di, [Header(XFR.Count)]
 	mov		[Header(XFR.Buffer)+di], al	; character
 	inc		di
@@ -221,36 +251,12 @@ DevInt10:
 	cmp		di, MaxXFRSize		; send if TTL buffer is full
 	pop		di
 	je		.SendTTLBuffer
-	cmp		al, 0x0a		; also send on LF
-	jne		.AdjustNone
+	ret
+	; cmp		al, 0x0a		; also send on LF
+	; jne		.AdjustNone
 .SendTTLBuffer:
 	call		SendToLog
-	jmp		.AdjustNone
-
-.CaptureDirect:
-	; Direct video capture
-	; call		Capture
-
-	cmp		ah, 0x07	; Scroll Down
-	je		.AdjustScroll
-	cmp		ah, 0x06	; Scroll Up
-	je		.AdjustScroll
-.CheckModeChange:
-	test		ah, ah
-	jnz		.AdjustNone
-.AdjustModeChange:
-	call		SendToLog
-	or		[Header(Status)], byte sfModeChange ; set flag
-	jmp		.AdjustNone
-.AdjustScroll:
-	test		cx, cx
-	jnz		.AdjustNotFull
-
-.AdjustNotFull:
-.AdjustNone:
-	pop		ds
-	popf
-	jmp		far [cs:BIOSInt10]
+	ret
 
 ; -----------------------------------------------------------------------------
 ; FAR function for external Log interface program to call that insures all data
