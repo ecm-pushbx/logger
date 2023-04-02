@@ -383,13 +383,15 @@ GetVideoSettings:
 	cmp		ax, 0x4000
 	ja		.ModeBad
 	mov		[es:di], byte 1
-	shr		ax, 1
 	push		ax
+	shr		ax, 1
 	xor		dx, dx
 	mov		ax, [0x004c]
-	div		[0x004a]
-	mov		dx, ax
-	pop		ax
+	mov		cx, [0x004a]
+	div		cx
+	shr		ax, 1
+	xchg		cx, ax
+	pop		dx
 	clc
 	jmp		.Done
 .ModeBad:
@@ -397,14 +399,28 @@ GetVideoSettings:
 	stosb
 	stc
 .Done:
-	mov		cx, ax
 	pop		ds
 	pop		es
 	pop		si
 	pop		di
 	; VideoData always populated, VideoDirect = 1 compatible, 0 incompatible
 	; CY set if incompatible to direct video mode or copy
-	; CY clear if compatible, bx=video segment, cx=regen words, dx=rows
+	; CY clear if compatible, bx=video segment, dx=regen words, ax=columns,
+	; cx=rows
+	push		dx
+
+;	pushag
+;	WordAsHex	ax
+;	ByteAsChar	'/'
+;	WordAsHex	cx
+;	ByteAsChar	','
+;	WordAsHex	bx
+;	ByteAsChar	'.'
+;	pop		dx
+;	WordAsHex	dx
+;	ByteAsChar	0x0d,0x0a
+;	popag
+
 	ret
 
 ; -----------------------------------------------------------------------------
