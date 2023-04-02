@@ -1,0 +1,20 @@
+To-Do for initial release:
+
+* Interface, Log viewing
+* Driver, Advanced logging method
+* Both, UMB memory support for LOG
+* Both, LOW memory support for LOG
+
+Maybe do in later releases:
+
+* Driver HOT-KEY support
+* Driver HOT-KEY screen captures
+* Interface HOT-KEY assignment
+
+Just under consideration and might do. It would increase the size of device
+driver. So, might not.
+
+* Remove direct to log writing from Interface by adding a "write to log"
+* Remove direct reading of log in Interface program by adding a "read from log"
+* Remove direct clearing of log by Interface program with a "clear from log"
+* Add DOS support for reading and writing to LOG character device.
