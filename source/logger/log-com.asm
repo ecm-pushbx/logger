@@ -384,6 +384,12 @@ GetVideoSettings:
 	ja		.ModeBad
 	mov		[es:di], byte 1
 	shr		ax, 1
+	push		ax
+	xor		dx, dx
+	mov		ax, [0x004c]
+	div		[0x004a]
+	mov		dx, ax
+	pop		ax
 	clc
 	jmp		.Done
 .ModeBad:
@@ -398,7 +404,7 @@ GetVideoSettings:
 	pop		di
 	; VideoData always populated, VideoDirect = 1 compatible, 0 incompatible
 	; CY set if incompatible to direct video mode or copy
-	; CY clear if compatible, bx=video segment, cx=regen words
+	; CY clear if compatible, bx=video segment, cx=regen words, dx=rows
 	ret
 
 ; -----------------------------------------------------------------------------
