@@ -30,9 +30,6 @@
 
 ; NASM 2.15.05, or later
 
-; DO NOT ENABLE "NO_SPLIT_SEND", it is not ready and. I'm not sure if I will
-; spend time on that method or delete it and keep using buffer splitting.
-
 ;%define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
@@ -78,7 +75,8 @@
 %idefine ofColorPrint	00000100b	; bit 2 = MONO/ANSI printing selected
 %idefine ofShowVersion  00001000b	; bit 3 = print version information
 %idefine ofShowHelp	00010000b	; bit 4 = print help and exit
-%idefine ofStdIn	00100000b	; but 5 = standard input added to log
+%idefine ofStdIn	00100000b	; bit 5 = standard input added to log
+%idefine ofBadVersion   01000000b	; bit 6 = incompatible driver version
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 
 
@@ -93,6 +91,8 @@ struc TDriverHeader
 
 	.Request:	resd 1			; Pointer to tREQUEST block
 
+	.Format:	resw 1			; Record Format Identifier
+
 	.Status:	resw 1			; Device driver Status
 
 	.Flush		resd 1			; far call to flush send buffer
@@ -103,9 +103,6 @@ struc TDriverHeader
 	.XMS.Tail:	resd 1			; first buffer read position
 	.XMS.Count:	resd 1			; bytes in buffer
 	.XMS.Max:	resd 1			; size of buffer in bytes
-%ifdef	NO_SPLIT_SEND				; top unused buffer byte
-	.XMS.Top:	resd 1			; to prevent split send buffer
-%endif						; wrapping, only whole sends
 
 	.XFR.Count:	resd 1			; byte count { must be even }
 	.XFR.SrcHandle:	resw 1			; 0 = conventional memory
@@ -113,8 +110,11 @@ struc TDriverHeader
 	.XFR.DstHandle:	resw 1			; XMS handle
 	.XFR.DstAddr:	resd 1			; pointer to destination
 
-	.XFR.Buffer:	resb MaxXFRSize + 4	; TTL XFR Buffer, plus room to
-						; tack on a color CRLF sequence
+	.XFR.Buffer:	resb MaxXFRSize 	; TTL XFR Buffer
+
+%ifdef	NO_SPLIT_SEND				; top unused buffer byte
+	.XMS.Top:	resd 1			; to prevent split send buffer
+%endif						; wrapping, only whole sends
 
 %ifdef DEBUG_DATA_SIZE
 	.DebugData:	resw DEBUG_DATA_SIZE
@@ -209,6 +209,20 @@ PROC_FindDeviceDriver:
 	and		ax, [es:di+2]	   ; probably left over garbage and
 	cmp		ax, -1		   ; we need to keep looking
 	je		%%Next
+	%ifndef DEVICE_DRIVER
+		; verify driver interface/data record format version
+		%ifdef NO_SPLIT_SEND
+			cmp	[es:di+4], word 0	; has XMS.TOP field
+		%else
+			cmp	[es:di+4], word 1	; does not have XMS.TOP field
+		%endif
+			je	%%Found
+			or	[Flags], byte ofBadVersion
+			jmp	%%Error
+		%%Found:
+	%endif
+
+
 	clc
 	jmp		%%Done
 %%Next:
@@ -222,6 +236,7 @@ PROC_FindDeviceDriver:
 %%CheckFailed:
 	test		bx, bx
 	jnz		%%Scanning
+%%Error:
 	stc
 %%Done:
 	; ax, bx, cx, dx, si, di = undefined

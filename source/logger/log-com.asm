@@ -71,6 +71,9 @@ Initialize:
 
 .NotShowVersion:
 	mov		dx, NoDriver
+	test		[Flags], byte ofBadVersion
+	jz		ErrorExit
+	mov		dx, BadDriver
 
 ErrorExit:
 	PrintMessage	dx
@@ -798,6 +801,9 @@ Banner:
 NoDriver:
 	db	'LOGGER.SYS driver is not loaded.',0x0d,0x0a,'$'
 
+BadDriver:
+	db 	'Incompatible LOGGER.SYS driver is loaded.',0x0d,0x0a,'$'
+
 BadOptionPre:
 	db	'Invalid option "$'
 BadOptionPost:
@@ -828,8 +834,6 @@ Flags:
 LastColor:
 	db	0
 
-OptPreTest:
-	db 	1
 
 ; -----------------------------------------------------------------------------
 

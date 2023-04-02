@@ -76,7 +76,12 @@ istruc TDriverHeader
 	at .Request,		dd -1		; Pointer to tREQUEST block
 
 ; -----------------------------------------------------------------------------
-; Data that is interacted with directly by LOG.COM program
+; Data that may be interacted with directly by the interface program
+%ifdef	NO_SPLIT_SEND
+	at .Format,		dw 0		; Record Format Identifier
+%else
+	at .Format,		dw 1		; Record Format Identifier
+%endif
 
 	at .Status,		dw sfModeChange	; Device driver Status
 						; set ModeChage Flag so driver
@@ -93,9 +98,6 @@ istruc TDriverHeader
 	at .XMS.Count,		dd 0		; bytes in buffer
 	at .XMS.Max,		dd 0 		; size of buffer in bytes
 
-%ifdef	NO_SPLIT_SEND
-	at .XMS.Top,		dd 0		; top unused buffer byte
-%endif
 						; XMS transfer Buffer
 	at .XFR.Count,		dd 0		; byte count { must be even }
 	at .XFR.SrcHandle,	dw 0		; 0 = conventional memory
@@ -103,7 +105,11 @@ istruc TDriverHeader
 	at .XFR.DstHandle,	dw -1		; XMS handle
 	at .XFR.DstAddr,	dd 0		; pointer to destination
 
-	at .XFR.Buffer,		db 0		; TTL XFR Buffer of MaxXFRSize + 4
+	at .XFR.Buffer,		db 0		; TTL XFR Buffer of MaxXFRSize
+
+%ifdef	NO_SPLIT_SEND
+	at .XMS.Top,		dd 0		; top unused buffer byte
+%endif
 
 iend
 ; -----------------------------------------------------------------------------
@@ -113,8 +119,10 @@ iend
 ; -----------------------------------------------------------------------------
 
 BIOSInt10:		dd -1			; Original BIOS Int 10
-LastCaptured:		dw -1			; Last Screen Row Logged
+LastCaptured:		dw -1			; Last Screen row sent to log
 
+; -----------------------------------------------------------------------------
+; The standard DOS function calls to interact with the driver
 ; -----------------------------------------------------------------------------
 
 Driver.Strategy:				; set request block pointer
@@ -244,6 +252,11 @@ DevInt10:
 	popf
 	jmp		far [cs:BIOSInt10]
 
+; -----------------------------------------------------------------------------
+; FAR function for external Log interface program to call that insures all data
+; stored in the buffer has been written to the log.
+; -----------------------------------------------------------------------------
+
 FlushBuffer:
 	; far call to send buffer contents to Log storage. It is not effected
 	; by driver enabled state.
@@ -256,6 +269,8 @@ FlushBuffer:
 	popf
 	retf
 
+; -----------------------------------------------------------------------------
+; Transfer buffer to Log storage.
 ; -----------------------------------------------------------------------------
 
 SendToLog:
@@ -478,9 +493,9 @@ SendToLog:
 
 
 ; -----------------------------------------------------------------------------
-; Should be released if keyboard snapshots when disabled or not supported
+; Should be released if keyboard snapshots are disabled by driver or are not
+; supported by (ancient) hardware.
 ; -----------------------------------------------------------------------------
-
 
 ; -----------------------------------------------------------------------------
 ; Always released after Initialization
