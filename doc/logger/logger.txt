@@ -57,16 +57,16 @@ Prossible upcoming options:
 
 -------------------------------------------------------------------------------
 
-LOGGER.COM [ ON ] [ PRINT | ANSI | VIEW | CLEAR | MSG text ]
+LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 
 Options to override or change the state of logging:
 
 	ON		Force logging on when finished.
 	OFF		Leave logging disabled when finished.
 
-Options that turn leave logging disabled:
+Options that leave logging disabled unless overridden:
 
-	CLEAR		Empties the current log
+	CLEAR		Empties the log.
 	PRINT		Outputs the log text to STDOUT.
 	ANSI		Like PRINT, but includes ANSI color sequences.
 
