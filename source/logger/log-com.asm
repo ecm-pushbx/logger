@@ -339,6 +339,7 @@ Option_View:
 	call		GetVideoSettings
 	jc		.BadMode
 
+	mov		cx, dx
 	push		ds
 	push		es
 	push		cs
@@ -361,6 +362,7 @@ GetVideoSettings:
 	push		si
 	push		es
 	push		ds
+
 	push		cs
 	pop		es
 	mov		ax, 0x0040
@@ -407,9 +409,9 @@ GetVideoSettings:
 	; CY set if incompatible to direct video mode or copy
 	; CY clear if compatible, bx=video segment, dx=regen words, ax=columns,
 	; cx=rows
-	push		dx
 
 ;	pushag
+;	push		dx
 ;	WordAsHex	ax
 ;	ByteAsChar	'/'
 ;	WordAsHex	cx
@@ -429,6 +431,79 @@ Option_Snapshot:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
 	call		GetVideoSettings
+
+	or		[Flags], byte ofKeepStatus
+
+	; since we know video segment, offset, columns and rows, we most likely
+	; could just pull the screen text directly from video memory. But, this
+	; doesn't need to be fast and should be more compatible. Although if it
+	; were to pull it directly, it would save a couple bytes in code and
+	; we would not need to restore the cursor position either.
+
+	; some BIOS destroy di, si, bp, so preserve them
+	; https://fd.lod.bz/rbil/interrup/video/1008.html#132
+	; push		bp	; don't care
+	; push		si	; don't care
+	push		di
+
+	mov		bh, [VideoData+TVideoData.Page]
+	xor		dh, dh
+.Rows:
+	push		cx
+	push		ax
+	xor		dl, dl
+	xor		bl, bl
+	mov		cx, ax
+.Columns:
+	push		dx
+	mov		ah, 0x02
+	int		0x10
+	mov		ah, 0x08
+	int		0x10
+	pop		dx
+	cmp		ax, 0x0720	; default color, space
+	je		.SkipSpace
+	test		bl, bl
+	jz		.NoneSkipped
+	push		ax
+	mov		ax, 0x0720
+.FillSkips:
+	call		AppendBuffer
+	dec		bl
+	jnz		.FillSkips
+	pop		ax
+.NoneSkipped:
+	call		AppendBuffer
+	jmp		.NextChar
+.SkipSpace:
+	inc		bl		; count skips
+.NextChar:
+	inc		dl		; next column
+	loop		.Columns
+	mov		al, 0x0d
+	call		AppendBuffer ; add CR to end of line
+	mov		al, 0x0a
+	call		AppendBuffer ; add LF to end of line
+	pop		ax
+	pop		cx
+	inc		dh 		; next row
+	loop		.Rows
+	call		FlushBuffer
+
+	; restore cursor position for page
+	push		bx
+	mov		bl, bh
+	xor		bh, bh
+	add		bx, bx
+	mov		dx, [VideoData+TVideoData.Position+bx]
+	pop		bx
+	mov		ah, 0x02
+	int		0x10
+
+	; restore di, si, bp
+	pop		di
+	; pop		si	; don't care
+	; pop		bp	; don't care
 
 	jmp		Option_Done
 

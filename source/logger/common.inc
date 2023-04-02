@@ -129,7 +129,7 @@ struc	TVideoData
 	.Columns:	resw	1		; screen columns
 	.Regen:		resw	1		; regen buffer size
 	.Offset:	resw	1		; videop page offset
-	.Positions:	resw	8		; cursor page positions
+	.Position:	resw	8		; cursor page positions
 	.Cursor:	resw	1		; cursor shape
 	.Page:		resb	1		; current video page
 endstruc
