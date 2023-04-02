@@ -173,8 +173,7 @@ DevInt10:
 	jz		.SetTTLMethod
 	; in a supported text mode?
 	mov		ax, 0x0040
-	push		ax
-	pop		es
+	mov		es, ax
 	mov		al, [es:0x0049]		; current video mode
 	and		al, 0x7f
 	cmp		al, 0x07		; is 80x25 mono?

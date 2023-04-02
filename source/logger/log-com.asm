@@ -103,6 +103,10 @@ DriverFound:
 	; make sure buffer contents have been written.
 	call		far [es:Header(Flush)]
 
+	%warning Should add a test for I/O redirection. \
+	That way, only redirected text is captured and not keystrokes. \
+	Maybe later.
+
 	; send any standard input text to Log
 	StdIn
 	jc		.NoStdInput
@@ -190,10 +194,8 @@ OptionTable:
 	db	 	'MSG', 0
 	dw		Option_View
 	db	 	'VIEW', 0
-;	dw		Option_StdIn
-;	db	 	'STDIN', 0
-;	dw 		Option_SnapShot
-;	db		'SNAPSHOT', 0
+	dw 		Option_Snapshot
+	db		'SNAPSHOT', 0
 ;	dw 		Option_HotKey
 ;	db		'HOTKEY', 0
 %ifdef DEBUG
@@ -332,6 +334,79 @@ Option_View:
 	PrintMessage 	LogEmpty
 	jmp		Option_Done
 .NotEmpty:
+	push		di
+
+	call		GetVideoSettings
+	jc		.BadMode
+
+	push		ds
+	push		es
+	push		cs
+	pop		es
+	mov		di, VideoRegen
+	mov		si, [VideoData+TVideoData.Offset]
+	push		bx
+	pop		ds
+	rep		movsw
+	pop		es
+	pop		ds
+.BadMode:
+
+	pop		di
+	jmp		Option_Done
+
+GetVideoSettings:
+	; copy video settings for later
+	push		di
+	push		si
+	push		es
+	push		ds
+	push		cs
+	pop		es
+	mov		ax, 0x0040
+	mov		ds, ax
+	mov		si, 0x0049
+	mov		di, VideoData
+	mov		cx, TVideoData_size
+	cld
+	rep		movsb
+	; check that we are in a compatible text mode to save screen
+	mov		bx, 0xb000 ; mono segment
+	mov		al, [0x0049]
+	cmp		al, 0x07
+	je		.ModeOk
+	mov		bx, 0xb800 ; color segment
+	cmp		al, 0x03
+	ja		.ModeBad
+.ModeOk:
+	mov		ax, [0x004c]
+	cmp		ax, 0x4000
+	ja		.ModeBad
+	mov		[es:di], byte 1
+	shr		ax, 1
+	clc
+	jmp		.Done
+.ModeBad:
+	xor		ax, ax
+	stosb
+	stc
+.Done:
+	mov		cx, ax
+	pop		ds
+	pop		es
+	pop		si
+	pop		di
+	; VideoData always populated, VideoDirect = 1 compatible, 0 incompatible
+	; CY set if incompatible to direct video mode or copy
+	; CY clear if compatible, bx=video segment, cx=regen words
+	ret
+
+; -----------------------------------------------------------------------------
+
+Option_Snapshot:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
+	call		GetVideoSettings
 
 	jmp		Option_Done
 
@@ -397,13 +472,6 @@ FlushBuffer:
 	call		far [es:Header(Flush)]
 	pop		es
 	ret
-
-; -----------------------------------------------------------------------------
-
-;Option_Snapshot:
-;	test		[Flags], byte ofPreTest
-;	jnz		Option_Done
-;	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
@@ -683,8 +751,10 @@ XFR:
 
 Buffer:			resw Buffer_Size; Transfer Buffer
 
-CursorXY:
-	resw 1
+VideoData:
+	resb TVideoData_size
+VideoDirect:
+	resb 1
 
-ScreenSave:
+VideoRegen:
 
