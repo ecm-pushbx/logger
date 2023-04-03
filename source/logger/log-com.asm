@@ -82,7 +82,10 @@ ErrorExit:
 	int		0x21
 
 DieXMSError:
-	; Print XMS error message and code
+	; Print XMS error message and code, then terminate
+	; this leaves stuff on the stack, but that will be cleaned up by DOS
+	; at exit. Also, we are going to leave logging turned off because of
+	; the error.
 	push		bx ; has error code
 	PrintMessage	XMSError
 	pop		ax ; was bx
@@ -357,9 +360,6 @@ LogViewer:
 	call		ClearScreen
 	; move cursor to top of screen
 	mov		bh, [VideoData+TVideoData.Page]
-	xor		dx, dx
-	mov		ah, 0x02
-	int		0x10
 
 	mov		ax,[es:Header(XMS.Count)]
 	or		ax,[es:Header(XMS.Count)+2]
@@ -371,7 +371,14 @@ LogViewer:
 			vfAtBottom + vfAtLeftmost + vfAtRightmost
 	jmp		.WaitKeyPress
 .NotEmpty:
-	mov		[Viewer.Flags], byte vfAtTop + vfAtLeftMost
+	mov		[Viewer.Flags], byte vfAtTop + vfAtLeftMost + vfAtRightMost
+	mov		[Viewer.LeftOfs], word 0
+	mov		[Viewer.WidthMax], word 0
+
+	call		PrepareForXMS
+	mov		[Viewer.Top], ax
+	mov		[Viewer.Top+2], dx
+	call		DrawPage
 
 .WaitKeyPress:
 	hlt
@@ -413,41 +420,289 @@ LogViewer:
 
 .KeyTable:
 
-	dw		.Done, 0x001b 	; Escape
-	dw		.Done, 0x000d 	; Enter/Return
-	dw		.Done, 0x000a 	; Enter/Return
-	dw		.Done, 0x0003 	; Ctrl+C
-	dw		.Up, 0x4800	; Up
-	dw		.Up, 0x4900	; PgUp
-	dw		.Up, 0x4700	; Home
-	dw		.Down, 0x5000	; Down
-	dw		.Down, 0x5100	; PgDn
-	dw		.Down, 0x4f00	; End
-	dw		.Left, 0x4b00	; Left
-	dw		.Left, 0x7300	; Ctrl+Left
-	dw		.Right, 0x4d00	; Right
-	dw		.Right, 0x7400	; Ctrl+Left
+	dw		.Done, 0x001b 		; Escape
+	dw		.Done, 0x000d 		; Enter/Return
+	dw		.Done, 0x000a 		; Enter/Return
+	dw		.Done, 0x0003 		; Ctrl+C
+	dw		.Up, 0x4800		; Up
+	dw		.PgUp, 0x4900		; PgUp
+	dw		.HomeKey, 0x4700	; Home
+	dw		.Down, 0x5000		; Down
+	dw		.PgDn, 0x5100		; PgDn
+	dw		.EndKey, 0x4f00		; End
+	dw		.Left, 0x4b00		; Left
+	dw		.CtrlLeft, 0x7300	; Ctrl+Left
+	dw		.Right, 0x4d00		; Right
+	dw		.CtrlRight, 0x7400	; Ctrl+Left
 	dw 		0			; end of list
 
+.HomeKey:
+	call		.Up
+	test		[Viewer.Flags], byte vfAtTop
+	jz		.HomeKey
+.PgUp:
+	mov		cx, [VideoData+TVideoData.Rows]
+	dec		cx
+.PgUpLoop:
+	push		cx
+	call		.Up
+	pop		cx
+	loop		.PgUpLoop
 .Up:
 	test		[Viewer.Flags], byte vfAtTop
-	jnz		.UpDone
-.UpDone:
+	jnz		.Done
+	call		.MoveUp
 	ret
+
+.EndKey:
+	call		.Down
+	test		[Viewer.Flags], byte vfAtBottom
+	jz		.EndKey
+.PgDn:
+	mov		cx, [VideoData+TVideoData.Rows]
+	dec		cx
+.PgDnLoop:
+	push		cx
+	call		.Down
+	pop		cx
+	loop		.PgDnLoop
 .Down:
-	test		[Viewer.Flags], byte vfAtTop
-	jnz		.DownDone
-.DownDone:
+	test		[Viewer.Flags], byte vfAtBottom
+	jnz		.Done
+	call		.MoveDown
 	ret
+
+.CtrlLeft:
+	call		.Left
+	test		[Viewer.Flags], byte vfAtLeftmost
+	jz		.CtrlLeft
+
 .Left:
-	test		[Viewer.Flags], byte vfAtTop
-	jnz		.LeftDone
-.LeftDone:
+	test		[Viewer.Flags], byte vfAtLeftmost
+	jnz		.Done
+	call		.MoveLeft
 	ret
+
+.CtrlRight:
+	call		.Right
+	test		[Viewer.Flags], byte vfAtRightmost
+	jz		.CtrlRight
+
 .Right:
-	test		[Viewer.Flags], byte vfAtTop
-	jnz		.RightDone
-.RightDone:
+	test		[Viewer.Flags], byte vfAtRightmost
+	jnz		.Done
+	call		.MoveRight
+	ret
+
+.MoveUp:
+	ret
+
+.MoveDown:
+	ret
+
+.MoveLeft:
+	ret
+
+.MoveRight:
+	ret
+
+; -----------------------------------------------------------------------------
+
+DrawPage:
+	; move cursor to top/left
+	xor		dx, dx
+	mov		ah, 0x02
+	int		0x10
+
+	mov		ax, [Viewer.Top]
+	mov		dx, [Viewer.Top+2]
+	mov		cx, [VideoData+TVideoData.Rows]
+	call		FetchXMS
+.Rows:
+	push		cx
+	mov		cx, [VideoData+TVideoData.Columns]
+	xor		si, si
+.Columns:
+	push		cx
+	test		si, si
+	jnz		.LineEnded
+	cmp		bl, 0x0d
+	je		.HitEOL
+	cmp		bl, 0x0a
+	jne		.Display
+.HitEOL:
+	inc		si
+.LineEnded:
+	mov		bx, 0x0720
+.Display:
+	call		.DisplayChar
+	test		si, si
+	jnz		.NoFetch
+	call		NextXMS
+	jnc		.NoFetch
+	inc		si
+.NoFetch:
+	pop		cx
+	loop		.Columns
+
+	; find start of next line
+	call 		FetchXMS
+	jc		.AtNextLine
+.FindEOL:
+	cmp		bl, 0x0a
+	je		.AtEOL
+	cmp		bl, 0x0d
+	je		.MaybeEOL
+	call 		NextXMS
+	jc		.AtNextLine
+	jmp		.FindEOL
+.MaybeEOL:
+	call 		NextXMS
+	cmp		bl, 0x0a
+	jne		.AtNextLine
+.AtEOL:
+	call 		NextXMS
+.AtNextLine:
+
+	pop		cx
+	mov		[Viewer.Bottom], ax
+	mov		[Viewer.Bottom+2], dx
+	loop		.Rows
+
+ 	ret
+
+.DisplayChar:
+ 	push		ax
+	push		dx
+	push		bx ; char/attr
+	; get x/y
+	mov		ah, 0x03
+	mov		bh, [VideoData+TVideoData.Page]
+	int		0x10
+	pop		ax ; was bx
+	push		dx
+	; print char at x/y
+	mov		bl, ah
+	mov		ah, 0x09
+	mov		cx, 0x001
+	int		0x10
+	; move cursor to next position
+	pop		dx
+	inc		dl
+	cmp		dl, [VideoData+TVideoData.Columns]
+	jne		.SameRow
+	xor		dl, dl
+	inc		dh
+	cmp		dh, [VideoData+TVideoData.Rows]
+	jne		.SameRow
+	xor		dh, dh
+.SameRow:
+	mov		ah, 0x02
+	int		0x10
+	pop		dx
+	pop		ax
+	ret
+
+; -----------------------------------------------------------------------------
+
+NextXMS:
+	cmpdd		dx, ax, es:Header(XMS.Head)
+	jne		.CanInc
+	or		[Viewer.Flags], byte vfAtBottom
+	stc
+	ret
+.CanInc:
+	and		[Viewer.Flags], byte (-1 - vfAtBottom) ; not vfAtBottom
+	%ifdef NO_SPLIT_BUFFER
+		cmpdd		dx, ax, es:Header(XMS.Top)
+	%else
+		cmpdd		dx, ax, es:Header(XMS.Max)
+	%endif
+	jne		.NoWrap
+	xor		ax, ax
+	xor		dx, dx
+	jmp		FetchXMS
+.NoWrap:
+	test		[es:Header(Status)], byte sfInColor
+	jz		.OneByte
+	inc		ax
+	jnz		.OneByte
+	inc		dx
+.OneByte:
+	inc		ax
+	jnz		FetchXMS
+	inc		dx
+	jmp		FetchXMS
+
+; -----------------------------------------------------------------------------
+
+PrevXMS:
+	cmpdd		dx, ax, es:Header(XMS.Tail)
+	jne		.CanDec
+	or		[Viewer.Flags], byte vfAtTop
+	stc
+	ret
+.CanDec:
+	and		[Viewer.Flags], byte (-1 - vfAtTop) ; not vfAtTop
+	mov		bx, dx
+	or		bx, ax
+	test		bx, bx
+	jnz		.NoWrap
+	%ifdef NO_SPLIT_BUFFER
+		mov	ax, [es:Header(XMS.Top)]
+		mov	dx, [es:Header(XMS.Top)+2]
+	%else
+		mov	ax, [es:Header(XMS.Max)]
+		mov	dx, [es:Header(XMS.Max)+2]
+	%endif
+	jmp		.TwoBytes
+.NoWrap:
+	test		[es:Header(Status)], byte sfInColor
+	jz		.OneByte
+.TwoBytes:
+	dec		ax
+	cmp		ax, 0xffff
+	jne		.OneByte
+	dec		dx
+.OneByte:
+	dec		ax
+	cmp		ax, 0xffff
+	je		FetchXMS
+	dec		dx
+	jmp		FetchXMS
+
+; -----------------------------------------------------------------------------
+
+FetchXMS:
+	push		ax
+	push		si
+	and		al, 0xfe
+	mov		si, XFR.Count
+	mov		[si], word 0x0002
+	mov		[si+2], word 0
+	mov		[XFR.SrcAddr], ax
+	mov		[XFR.SrcAddr+2], dx
+	mov		ah, 0x0b
+	push		dx	; just in case
+	push		ds	; just in case
+	push		es	; just in case
+	call far 	[es:Header(XMS.Driver)]
+	pop		es
+	pop		ds
+	pop		dx
+	test		ax,ax
+	jz		DieXMSError
+	pop		si
+	pop		ax
+	test		al, 1 		; odd bytes are only requested when log
+	jnz		.HighByte	; is stored in monochrome
+	mov		bx, [Buffer]
+	clc
+	ret
+.HighByte:
+	mov		bl, 0x07	; swap high/low bytes and set color
+	xchg		bh, bl
+	clc
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -718,6 +973,22 @@ DoPrintMessage:
 
 ; -----------------------------------------------------------------------------
 
+PrepareForXMS:
+	; prepare XMS transfer record
+	mov		ax, [es:Header(XFR.DstHandle)]
+	mov		[XFR.SrcHandle], ax
+	mov		[XFR.DstHandle], word 0
+	mov		[XFR.DstAddr], word Buffer
+	mov		[XFR.DstAddr+2], cs
+
+	; load first item pointer
+	mov		ax, [es:Header(XMS.Tail)]
+	mov		dx, [es:Header(XMS.Tail)+2]
+
+	mov		si, XFR.Count	; set pointer to XFR record
+	ret
+; -----------------------------------------------------------------------------
+
 PrintLog:
 	; When not sfLogJam mode, probably going to have printing skip forward
 	; to first CRLF when the log is full. That would prevent displaying
@@ -731,18 +1002,7 @@ PrintLog:
 	test		ax, ax
 	jz		.Empty
 
-	; prepare XMS transfer record
-	mov		ax, [es:Header(XFR.DstHandle)]
-	mov		[XFR.SrcHandle], ax
-	mov		[XFR.DstHandle], word 0
-	mov		[XFR.DstAddr], word Buffer
-	mov		[XFR.DstAddr+2], cs
-
-	; load first item pointer
-	mov		ax, [es:Header(XMS.Tail)]
-	mov		dx, [es:Header(XMS.Tail)+2]
-
-	mov		si, XFR.Count	; set pointer to XFR record
+	call		PrepareForXMS
 .PrintLoop:
 	; add stuff to buffer transfers of 1k blocks at a times
 
@@ -960,6 +1220,10 @@ Buffer:			resw Buffer_Size; Transfer Buffer
 
 Viewer:
 	.Flags:		resw 1		; Viewer navigation control flags
+	.Top:		resd 1		; Top line on screen start
+	.Bottom:	resd 1		; End of Bottom line.
+	.LeftOfs:	resw 1		; Start position on lines
+	.WidthMax:	resw 1		; Maximum Line Width
 
 VideoData:
 	resb TVideoData_size
