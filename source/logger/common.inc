@@ -79,6 +79,12 @@
 %idefine ofBadVersion   01000000b	; bit 6 = incompatible driver version
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 
+; interface viewer navigation control flags
+%idefine vfAtTop	00000001b
+%idefine vfAtBottom     00000010b
+%idefine vfAtLeftmost   00000100b
+%idefine vfAtRightmost  00001000b
+%idefine vfIsEmptyLog   10000000b
 
 ; -----------------------------------------------------------------------------
 
@@ -125,6 +131,7 @@ endstruc
 ; -----------------------------------------------------------------------------
 
 struc	TVideoData
+	; data copied from BIOS memory area
 	.Mode:		resb	1		; current video mode
 	.Columns:	resw	1		; screen columns
 	.Regen:		resw	1		; regen buffer size
@@ -132,6 +139,10 @@ struc	TVideoData
 	.Position:	resw	8		; cursor page positions
 	.Cursor:	resw	1		; cursor shape
 	.Page:		resb	1		; current video page
+	.EndBDA:				; end of copied video BIOS data
+	; calculated data
+	.Direct:	resb 1			; direct video supported
+	.Rows:		resw 1			; rows on screen
 endstruc
 
 ; -----------------------------------------------------------------------------
@@ -875,6 +886,73 @@ PROC_StdIn:
 
 ; -----------------------------------------------------------------------------
 
+%macro INTERNAL_VideoSettings 0
+PROC_VideoSettings:
+	; copy video settings for later
+	push		di
+	push		si
+	push		es
+	push		ds
+
+	push		cs
+	pop		es
+	mov		ax, 0x0040
+	mov		ds, ax
+	mov		si, 0x0049
+	mov		di, VideoData
+	mov		cx, TVideoData.EndBDA
+	cld
+	rep		movsb
+	; check that we are in a compatible text mode to save screen
+	mov		bx, 0xb000 ; mono segment
+	mov		al, [0x0049]
+	cmp		al, 0x07
+	je		.ModeOk
+	mov		bx, 0xb800 ; color segment
+	cmp		al, 0x03
+	ja		.ModeBad
+.ModeOk:
+	mov		ax, [0x004c]
+	cmp		ax, 0x4000
+	ja		.ModeBad
+	mov		[es:di], byte 1	; TVideoData.Direct
+	inc		di
+	push		ax
+	shr		ax, 1
+	xor		dx, dx
+	mov		ax, [0x004c]
+	mov		cx, [0x004a]
+	div		cx
+	shr		ax, 1
+	xchg		cx, ax
+	pop		dx
+	clc
+	jmp		.Done
+.ModeBad:
+	xor		ax, ax
+	stosb				; TVideoData.Direct
+	stc
+.Done:
+	mov		[es:di], cx	; TVideoData.Rows
+	pop		ds
+	pop		es
+	pop		si
+	pop		di
+	; VideoData always populated, VideoDirect = 1 compatible, 0 incompatible
+	; CY set if incompatible to direct video mode or copy
+	; CY clear if compatible, bx=video segment, dx=regen words, ax=columns,
+	; cx=rows
+
+	ret
+%endmacro
+
+%imacro VideoSettings 0
+	%define NEED_VideoSettings
+	call	PROC_VideoSettings
+%endmacro
+
+; -----------------------------------------------------------------------------
+
 
 %imacro ConditionalCode 1
 	%ifdef NEED_%1
@@ -887,6 +965,7 @@ PROC_StdIn:
 
 %imacro CommonCode 0
 	ConditionalCode	ParseOptions
+	ConditionalCode VideoSettings
 	ConditionalCode StdIn
 	ConditionalCode	WordAsInt
 	ConditionalCode	WordAsHex

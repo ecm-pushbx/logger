@@ -334,21 +334,14 @@ Option_View:
 
 	push		es
 	mov		es, [DriverSeg]
-	mov		ax,[es:Header(XMS.Count)]
-	or		ax,[es:Header(XMS.Count)+2]
-	test		ax, ax
-	jnz		.NotEmpty
-	pop		es
-	PrintMessage 	LogEmpty
-	jmp		Option_Done
-.NotEmpty:
 	push		di
 
-	call		GetVideoSettings
+	VideoSettings
 	push		bx			; save video segment for later
 	push		dx			; save regen size in words
 	call		ScreenSave
-	PrintMessage	Banner
+
+	call		LogViewer
 
 	pop		dx			; restore regin size in words
 	pop		bx			; restore video segment
@@ -360,8 +353,133 @@ Option_View:
 
 ; -----------------------------------------------------------------------------
 
+LogViewer:
+	call		ClearScreen
+	; move cursor to top of screen
+	mov		bh, [VideoData+TVideoData.Page]
+	xor		dx, dx
+	mov		ah, 0x02
+	int		0x10
+
+	mov		ax,[es:Header(XMS.Count)]
+	or		ax,[es:Header(XMS.Count)+2]
+	test		ax, ax
+	jnz		.NotEmpty
+
+	PrintMessage 	LogEmpty
+	mov		[Viewer.Flags], byte vfIsEmptyLog + vfAtTop + \
+			vfAtBottom + vfAtLeftmost + vfAtRightmost
+	jmp		.WaitKeyPress
+.NotEmpty:
+	mov		[Viewer.Flags], byte vfAtTop + vfAtLeftMost
+
+.WaitKeyPress:
+	hlt
+	mov		ah, 0x01
+	int		0x16
+	jz		.WaitKeyPress
+	xor		ah, ah
+	int		0x16
+	cld
+	mov		dx, ax
+	mov		si, .KeyTable
+.LookupKey:
+	lodsw
+	test		ax, ax
+	jz		.WaitKeyPress	; not found
+	mov		bx, ax
+	lodsw
+	cmp		ax, dx
+	je		.KeyFound
+	test		ah, ah
+	jnz		.LookupKey
+	cmp		al, dl
+	je		.KeyFound
+	jmp		.LookupKey
+.KeyFound:
+	cmp		bx, .Done
+	je		.Done
+	call		bx
+	jmp		.WaitKeyPress
+
+	; Navigation Keys
+.AtRightmost:
+
+	; WordAsHex	ax
+	; ByteAsChar	0x0d,0x0a
+	jmp		.WaitKeyPress
+.Done:
+	ret
+
+.KeyTable:
+
+	dw		.Done, 0x001b 	; Escape
+	dw		.Done, 0x000d 	; Enter/Return
+	dw		.Done, 0x000a 	; Enter/Return
+	dw		.Done, 0x0003 	; Ctrl+C
+	dw		.Up, 0x4800	; Up
+	dw		.Up, 0x4900	; PgUp
+	dw		.Up, 0x4700	; Home
+	dw		.Down, 0x5000	; Down
+	dw		.Down, 0x5100	; PgDn
+	dw		.Down, 0x4f00	; End
+	dw		.Left, 0x4b00	; Left
+	dw		.Left, 0x7300	; Ctrl+Left
+	dw		.Right, 0x4d00	; Right
+	dw		.Right, 0x7400	; Ctrl+Left
+	dw 		0			; end of list
+
+.Up:
+	test		[Viewer.Flags], byte vfAtTop
+	jnz		.UpDone
+.UpDone:
+	ret
+.Down:
+	test		[Viewer.Flags], byte vfAtTop
+	jnz		.DownDone
+.DownDone:
+	ret
+.Left:
+	test		[Viewer.Flags], byte vfAtTop
+	jnz		.LeftDone
+.LeftDone:
+	ret
+.Right:
+	test		[Viewer.Flags], byte vfAtTop
+	jnz		.RightDone
+.RightDone:
+	ret
+
+; -----------------------------------------------------------------------------
+
+ClearScreen:
+	xor		al, al
+	jmp		ScrollUp.Clearing
+
+ScrollDown:
+	mov		ax, 0x0701
+	jmp		ScrollUp.Down
+
+ScrollUp:
+	mov		al, 0x01		; count
+.Clearing:
+	mov		ah, 0x06		; BIOS fn 0x06 Scroll Up
+.Down:
+	mov		bh, 0x07		; Fill Color Attribute
+	xor		cx, cx			; Start X/Y
+	mov		dl, [VideoData+TVideoData.Columns]
+	mov		dh, [VideoData+TVideoData.Rows]
+	push		ds ; BUG - https://fd.lod.bz/rbil/interrup/video/1006.html
+	; push		bp ; dont care
+	int		0x10
+	; pop		bp
+	pop		ds
+	ret
+
+; -----------------------------------------------------------------------------
+
 ScreenSave:
-	cmp		[VideoDirect], byte 0
+	cmp		[VideoData+TVideoData.Direct], byte 0
 	jnz		.Supported
 	ret
 .Supported:
@@ -383,7 +501,7 @@ ScreenSave:
 ; -----------------------------------------------------------------------------
 
 ScreenRestore:
-	cmp		[VideoDirect], byte 0
+	cmp		[VideoData+TVideoData.Direct], byte 0
 	jnz		.Supported
 	ret
 .Supported:
@@ -405,84 +523,15 @@ ScreenRestore:
 	call		CursorRestore
 	ret
 
-; -----------------------------------------------------------------------------
-GetVideoSettings:
-	; copy video settings for later
-	push		di
-	push		si
-	push		es
-	push		ds
-
-	push		cs
-	pop		es
-	mov		ax, 0x0040
-	mov		ds, ax
-	mov		si, 0x0049
-	mov		di, VideoData
-	mov		cx, TVideoData_size
-	cld
-	rep		movsb
-	; check that we are in a compatible text mode to save screen
-	mov		bx, 0xb000 ; mono segment
-	mov		al, [0x0049]
-	cmp		al, 0x07
-	je		.ModeOk
-	mov		bx, 0xb800 ; color segment
-	cmp		al, 0x03
-	ja		.ModeBad
-.ModeOk:
-	mov		ax, [0x004c]
-	cmp		ax, 0x4000
-	ja		.ModeBad
-	mov		[es:di], byte 1
-	push		ax
-	shr		ax, 1
-	xor		dx, dx
-	mov		ax, [0x004c]
-	mov		cx, [0x004a]
-	div		cx
-	shr		ax, 1
-	xchg		cx, ax
-	pop		dx
-	clc
-	jmp		.Done
-.ModeBad:
-	xor		ax, ax
-	stosb
-	stc
-.Done:
-	pop		ds
-	pop		es
-	pop		si
-	pop		di
-	; VideoData always populated, VideoDirect = 1 compatible, 0 incompatible
-	; CY set if incompatible to direct video mode or copy
-	; CY clear if compatible, bx=video segment, dx=regen words, ax=columns,
-	; cx=rows
-
-;	pushag
-;	push		dx
-;	WordAsHex	ax
-;	ByteAsChar	'/'
-;	WordAsHex	cx
-;	ByteAsChar	','
-;	WordAsHex	bx
-;	ByteAsChar	'.'
-;	pop		dx
-;	WordAsHex	dx
-;	ByteAsChar	0x0d,0x0a
-;	popag
-
-	ret
 
 ; -----------------------------------------------------------------------------
 
 Option_Snapshot:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
-	call		GetVideoSettings
-
 	or		[Flags], byte ofKeepStatus
+
+	VideoSettings
 
 	; since we know video segment, offset, columns and rows, we most likely
 	; could just pull the screen text directly from video memory. But, this
@@ -598,6 +647,8 @@ Option_Msg:
 	; popf
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
 AppendBuffer:
 	push		es
 	push		di
@@ -618,6 +669,8 @@ AppendBuffer:
 	pop		di
 	pop		es
 	ret
+
+; -----------------------------------------------------------------------------
 
 FlushBuffer:
 	push		es
@@ -905,10 +958,11 @@ XFR:
 
 Buffer:			resw Buffer_Size; Transfer Buffer
 
+Viewer:
+	.Flags:		resw 1		; Viewer navigation control flags
+
 VideoData:
 	resb TVideoData_size
-VideoDirect:
-	resb 1
 
 VideoRegen:
 
