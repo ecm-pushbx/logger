@@ -371,14 +371,9 @@ LogViewer:
 			vfAtBottom + vfAtLeftmost + vfAtRightmost
 	jmp		.WaitKeyPress
 .NotEmpty:
-	mov		[Viewer.Flags], byte vfAtTop + vfAtLeftMost + vfAtRightMost
-	mov		[Viewer.LeftOfs], word 0
 	mov		[Viewer.WidthMax], word 0
 
-	call		PrepareForXMS
-	mov		[Viewer.Top], ax
-	mov		[Viewer.Top+2], dx
-	call		DrawPage
+	call		.GoHome
 
 .WaitKeyPress:
 	hlt
@@ -437,9 +432,17 @@ LogViewer:
 	dw 		0			; end of list
 
 .HomeKey:
-	call		.Up
 	test		[Viewer.Flags], byte vfAtTop
-	jz		.HomeKey
+	jz		.GoHome
+	ret
+.GoHome:
+	call		PrepareForXMS
+	mov		[Viewer.Flags], byte vfAtTop + vfAtLeftMost + vfAtRightMost
+	mov		[Viewer.LeftOfs], word 0
+	mov		[Viewer.Top], ax
+	mov		[Viewer.Top+2], dx
+	jmp		DrawPage
+
 .PgUp:
 	mov		cx, [VideoData+TVideoData.Rows]
 	dec		cx
@@ -451,8 +454,8 @@ LogViewer:
 .Up:
 	test		[Viewer.Flags], byte vfAtTop
 	jnz		.Done
-	call		.MoveUp
-	ret
+	call		PrevLine
+	jmp		DrawPage
 
 .EndKey:
 	call		.Down
@@ -469,19 +472,18 @@ LogViewer:
 .Down:
 	test		[Viewer.Flags], byte vfAtBottom
 	jnz		.Done
-	call		.MoveDown
-	ret
+	call		NextLine
+	jmp		DrawPage
 
 .CtrlLeft:
-	call		.Left
 	test		[Viewer.Flags], byte vfAtLeftmost
-	jz		.CtrlLeft
-
+	mov		[Viewer.LeftOfs], word 0
+	jmp		DrawPage
 .Left:
 	test		[Viewer.Flags], byte vfAtLeftmost
 	jnz		.Done
-	call		.MoveLeft
-	ret
+	dec		word [Viewer.LeftOfs]
+	jmp		DrawPage
 
 .CtrlRight:
 	call		.Right
@@ -491,24 +493,53 @@ LogViewer:
 .Right:
 	test		[Viewer.Flags], byte vfAtRightmost
 	jnz		.Done
-	call		.MoveRight
+	inc		word [Viewer.LeftOfs]
+	jmp		DrawPage
+
+; -----------------------------------------------------------------------------
+
+PrevLine:
+	and		[Viewer.Flags], byte (-1 - vfAtBottom)
+	mov		ax, [Viewer.Top]
+	mov		dx, [Viewer.Top+2]
+	call		PrevXMS
+	mov		[Viewer.Top], ax
+	mov		[Viewer.Top+2], dx
 	ret
 
-.MoveUp:
-	ret
+NextLine:
+	and		[Viewer.Flags], byte (-1 - vfAtTop)
+	mov		ax, [Viewer.Top]
+	mov		dx, [Viewer.Top+2]
+	call		NextXMS
+	mov		[Viewer.Top], ax
+	mov		[Viewer.Top+2], dx
 
-.MoveDown:
-	ret
-
-.MoveLeft:
-	ret
-
-.MoveRight:
 	ret
 
 ; -----------------------------------------------------------------------------
 
+;DrawTopRow:
+;	mov		cx, 0x0001
+;	jmp		DrawPage.StartAtTop
+
+;DrawBottomRow:
+;	mov		dx, [VideoData+TVideoData.Rows]
+;	dec		dx
+;	xchg		dl, dh
+;	mov		ah, 0x02
+;	int		0x10
+;	mov		cx, 0x0001
+;	mov		ax, [Viewer.Bottom]
+;	mov		dx, [Viewer.Bottom+2]
+;	jmp		DrawPage.StartElsewhere
+
+; -----------------------------------------------------------------------------
+
 DrawPage:
+	mov		cx, [VideoData+TVideoData.Rows]
+
+.StartAtTop:
 	; move cursor to top/left
 	xor		dx, dx
 	mov		ah, 0x02
@@ -516,16 +547,19 @@ DrawPage:
 
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
-	mov		cx, [VideoData+TVideoData.Rows]
+
+.StartElsewhere:
 	call		FetchXMS
 .Rows:
 	push		cx
 	mov		cx, [VideoData+TVideoData.Columns]
 	xor		si, si
+	xor		di, di
 .Columns:
 	push		cx
 	test		si, si
 	jnz		.LineEnded
+	inc		di
 	cmp		bl, 0x0d
 	je		.HitEOL
 	cmp		bl, 0x0a
@@ -554,22 +588,37 @@ DrawPage:
 	cmp		bl, 0x0d
 	je		.MaybeEOL
 	call 		NextXMS
+	inc		di
 	jc		.AtNextLine
 	jmp		.FindEOL
 .MaybeEOL:
 	call 		NextXMS
+	inc		di
 	cmp		bl, 0x0a
 	jne		.AtNextLine
 .AtEOL:
 	call 		NextXMS
 .AtNextLine:
+	mov		cx, [Viewer.WidthMax]
+	cmp		di, cx
+	jbe		.NotWider
+	cmp		cx, di
+.NotWider:
+	mov		[Viewer.WidthMax], cx
+	or 		[Viewer.Flags], byte vfAtRightMost
+	add		cx, [VideoData+TVideoData.Columns]
+	jc		.AtRightmost
+	cmp		cx, di
+	ja		.AtRightmost
+	and 		[Viewer.Flags], byte (-1 - vfAtRightmost) ; not vfAtRightmost
 
-	pop		cx
+.AtRightmost:
 	mov		[Viewer.Bottom], ax
 	mov		[Viewer.Bottom+2], dx
+	pop		cx
 	loop		.Rows
-
  	ret
+
 
 .DisplayChar:
  	push		ax
@@ -667,7 +716,7 @@ PrevXMS:
 .OneByte:
 	dec		ax
 	cmp		ax, 0xffff
-	je		FetchXMS
+	jne		FetchXMS
 	dec		dx
 	jmp		FetchXMS
 
@@ -709,17 +758,19 @@ FetchXMS:
 
 ClearScreen:
 	xor		al, al
-	jmp		ScrollUp.Clearing
-
-ScrollDown:
-	mov		ax, 0x0701
-	jmp		ScrollUp.Down
-
-ScrollUp:
+;	jmp		ScrollUp.Clearing
+;
+;ScrollDown:
+;	mov		ax, 0x0701
+;	jmp		ScrollUp.Down
+;
+;ScrollUp:
 	mov		al, 0x01		; count
-.Clearing:
+;.Clearing:
 	mov		ah, 0x06		; BIOS fn 0x06 Scroll Up
-.Down:
+;	jmp		.Scroll
+;.Down:
+;.Scroll:
 	mov		bh, 0x07		; Fill Color Attribute
 	xor		cx, cx			; Start X/Y
 	mov		dl, [VideoData+TVideoData.Columns]
