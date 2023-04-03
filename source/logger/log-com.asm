@@ -503,6 +503,8 @@ PrevLine:
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
 	call		PrevXMS
+	jc		.AtFirst
+.AtFirst:
 	mov		[Viewer.Top], ax
 	mov		[Viewer.Top+2], dx
 	ret
@@ -511,10 +513,24 @@ NextLine:
 	and		[Viewer.Flags], byte (-1 - vfAtTop)
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
+.NotEOL:
 	call		NextXMS
+	jc		.Failed ; should never happen
+	cmp		bl, 0x0a
+	jne		.CheckForCR
+	call		NextXMS
+	jmp		.Done
+.CheckForCR:
+	cmp		bl, 0x0d
+	jne		.NotEOL
+	call		NextXMS
+	cmp		bl, 0x0a
+	jne		.Done
+	call		NextXMS
+.Done:
 	mov		[Viewer.Top], ax
 	mov		[Viewer.Top+2], dx
-
+.Failed:
 	ret
 
 ; -----------------------------------------------------------------------------
