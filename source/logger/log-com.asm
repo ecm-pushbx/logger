@@ -120,8 +120,14 @@ DriverFound:
 	StdIn
 	jc		.NoStdInput
 	or		[Flags], byte ofStdIn
+
+
 	mov		ah, COLOR_STDIN
 .LoopStdIn:
+	test		[Flags+1], byte ofPassThru
+	jz		.NoPassThru
+	StdOut
+.NoPassThru:
 	call		AppendBuffer
 	StdIn
 	jnc		.LoopStdIn
@@ -205,8 +211,8 @@ OptionTable:
 	db	 	'VIEW', 0
 	dw 		Option_Snapshot
 	db		'SNAPSHOT', 0
-;	dw 		Option_HotKey
-;	db		'HOTKEY', 0
+	dw 		Option_PassThru
+	db		'PASS', 0
 %ifdef DEBUG
 	dw		Option_Debug
 	db		'DEBUG',0
@@ -228,15 +234,20 @@ Option_Debug:
 ; -----------------------------------------------------------------------------
 
 Option_Help:
-	or		[Flags], byte ofShowHelp
+	or		[Flags], byte ofShowHelp + ofKeepStatus
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_PassThru:
+	or		[Flags+1], byte ofPassThru
 	or		[Flags], byte ofKeepStatus
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
 
 Option_Version:
-	or		[Flags], byte ofShowVersion
-	or		[Flags], byte ofKeepStatus
+	or		[Flags], byte ofShowVersion + ofKeepStatus
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -1362,6 +1373,8 @@ section .bss
 DriverSeg:		resw 1		; Segment of Logger.sys driver
 
 OrgStat: 		resw 1		; Original Driver Status at Startup
+
+StdOut_Buffer:		resb 1		; used by StdOut for PASSTHRU
 
 XFR:
 	.Count:		resd 1		; byte count { must be even }

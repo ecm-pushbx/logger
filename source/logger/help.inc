@@ -13,5 +13,6 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
+	PASS		Pass any STDIN text back out through STDOUT.
 
 see LOGGER.TXT for more information.

@@ -78,6 +78,7 @@ Options that will return logging to its previous state:
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
+	PASS		Pass any STDIN text back out through STDOUT.
 
 LOGGER always disables logging when executed. Based on the options provided on
 the command line, logging may or may not be enabled when the program finishes

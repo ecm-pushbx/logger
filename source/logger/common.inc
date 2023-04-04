@@ -78,6 +78,7 @@
 %idefine ofStdIn	00100000b	; bit 5 = standard input added to log
 %idefine ofBadVersion   01000000b	; bit 6 = incompatible driver version
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
+%idefine ofPassThru	00000001b	; bit 8 = also send any STDIN to STDOUT
 
 ; interface viewer navigation control flags
 %idefine vfAtTop	00000001b
@@ -877,12 +878,33 @@ PROC_StdIn:
 	pop		dx
 	ret
 	; CY set, no input al=0
-	; CY clear, al=
+	; CY clear, al=character
 %endmacro
 
 %imacro StdIn 0
 	%define NEED_StdIn
 	call	PROC_StdIn
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro StdOut 0
+	pushf
+	push		ax
+	push		bx
+	push		cx
+	push		dx
+	mov		[StdOut_Buffer], al
+	mov		ah, 0x40
+	mov		bx, 0x0001		; StdOut Handle
+	mov		cx, bx			; Number of bytes
+	mov		dx, StdOut_Buffer	; ds:dx -> buffer
+	int		0x21
+	pop		dx
+	pop		cx
+	pop		bx
+	pop		ax
+	popf
 %endmacro
 
 ; -----------------------------------------------------------------------------
