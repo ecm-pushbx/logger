@@ -219,8 +219,8 @@ PROC_FindDeviceDriver:
 	; matched driver id string
 	; check request pointer and interface pointer segments
 	mov		ax, [es:di]	   ; -1 then driver is not initialized
-	and		ax, [es:di+2]	   ; probably left over garbage and
-	cmp		ax, -1		   ; we need to keep looking
+	and		ax, [es:di+2]	   ; probably left over memory garbage
+	cmp		ax, -1		   ; and we need to keep looking
 	je		%%Next
 	%ifndef DEVICE_DRIVER
 		; verify driver interface/data record format version
@@ -234,7 +234,6 @@ PROC_FindDeviceDriver:
 			jmp	%%Error
 		%%Found:
 	%endif
-
 
 	clc
 	jmp		%%Done

@@ -7,9 +7,10 @@ To-Do for initial release:
 Maybe do in later releases. They would increase the size of device driver. So,
 might not. We will see.
 
-* Driver HOT-KEY support
-* Driver HOT-KEY screen captures
-* Interface HOT-KEY assignment
+* Interface, assign color to manually logged input and messages.
+* Driver, HOT-KEY support
+* Driver, HOT-KEY screen captures
+* Interface, HOT-KEY assignment
 * Viewer, jump to end instead of paging down to reach end.
 
 Just under consideration. These would also increase the size of the device

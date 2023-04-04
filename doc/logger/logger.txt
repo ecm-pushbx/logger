@@ -10,10 +10,14 @@ THOSE MAY BE CHANGED, REMOVED OR EVEN MORE ADDED IN THE RELEASE VERSION.
 -------------------------------------------------------------------------------
 
 Logger consists of a pair of programs that use various methods to capture text
-during the system boot process. The first is LOGGER.SYS which is a device
-driver that gets loaded by the system config file. The second part is an
-interface program called LOGGER.COM which can communicate with the device
-driver.
+during the system boot process and during usage until disabled. The first
+program is LOGGER.SYS. It is a device driver that gets loaded in the system
+config file and performs the actual logging. The second program is an
+interface program called LOGGER.COM. It is used to communicate with the device
+driver. The interface program can view and perform other actions on the log
+when the driver is loaded.
+
+see TO-DO for known and potential future features.
 
 *******************************************************************************
 
@@ -26,8 +30,8 @@ LOGGER.SYS [XMS | UMB | LOW] [COLOR | MONO] [JAM] [size]
 	COLOR	Record color attributes associated with log text.
 	MONO	Only record log text.
 
-	JAM	Stop recording if log is full. Normally when if the buffer
-		becomes full, older messages are discarded to make room.
+	JAM	Stop recording if log is full. Normally if the buffer becomes
+		full, older logged text is discarded to make room.
 
 	size	Amount of memory to allocate for log in kilobytes (1-65535).
 
@@ -51,10 +55,6 @@ of options.
 The JAM option will apply to all logging regardless of which buffer gets
 allocated or its position in the option list.
 
-Prossible upcoming options:
-
-	HOTKEY key	Set a keyboard shortcut for taking screen snapshots.
-
 -------------------------------------------------------------------------------
 
 LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
@@ -66,8 +66,8 @@ Options to override or change the state of logging:
 
 Options that leave logging disabled unless overridden:
 
-	CLEAR		Empties the log.
-	PRINT		Outputs the log text to STDOUT.
+	CLEAR		Empty the log.
+	PRINT		Output the log text to STDOUT.
 	ANSI		Like PRINT, but includes ANSI color sequences.
 
 Options that will return logging to its previous state:
@@ -91,9 +91,26 @@ will exit after appending the Log.
 If no options are provided and there is no redirected text waiting, the default
 behaviour is to VIEW the log.
 
-Possible upcoming option:
+While viewing the log, the following keystrokes are supported:
 
-	HOTKEY key	Set/change a keyboard shortcut for taking snapshots.
+	ESACPE		Exit. (Also, ENTER/RETURN will exit)
+	ARROW KEYS	General navigation.
+	PAGE UP/DOWN	Scroll Up or Down a page at a time.
+	HOME		Move to beginning.
+	END		Page Down to the end.
+	CTRL+LEFT	Move to the leftmost column.
+	CTRL+RIGHT	Move to the rightmost column of the longest line on
+			the display.
+
+The viewer does not automatically wrap text that exceeds the display width of
+the screen. In video modes that are not supported by advanced capturing, the
+logged text can exceed the screen width. Regardless of the capture method, any
+text that is added through I/O redirection or the MESSAGE option can also
+exceed the screen width.
+
+The RIGHT arrow key will only shift the display right when there is a line
+displayed on the screen that contains additional information beyond the width
+of the display.
 
 *******************************************************************************
 

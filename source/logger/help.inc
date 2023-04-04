@@ -3,8 +3,8 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	ON		Force logging on when finished.
 	OFF		Leave logging disabled when finished.
 
-	CLEAR		Empties the log.
-	PRINT		Outputs the log text to STDOUT.
+	CLEAR		Empty the log.
+	PRINT		Output the log text to STDOUT.
 	ANSI		Like PRINT, but includes ANSI color sequences.
 
 	VERSION		Display version information.
