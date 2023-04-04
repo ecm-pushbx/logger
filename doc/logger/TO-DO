@@ -1,18 +1,29 @@
 To-Do for initial release:
 
 * Driver, Advanced logging method
-* UMB memory support for LOG
-* LOW memory support for LOG
 * Interface, STDIN logging pass-through option
+* Interface, test for I/O redirection instead of assuming sending STDIN to log.
+* Both, UMB & LOW memory support for LOG
+
+Maybe stuff that could be in later releases that would not effect the device
+driver's memory footprint.
+
+* Resize LOG capacity.
+* Enable/Disable Log JAM mode.
+* Single EXE instead of SYS+COM files.
+* HTML format log output.
+* Export log or selection from viewer to file (TEXT, ANSI, HTML).
 
 Maybe do in later releases. They would increase the size of device driver. So,
 might not. We will see.
 
-* Interface, assign color to manually logged input and messages.
+* Interface, assign color to items manually logged using STDIN and MESSAGE.
 * Driver, HOT-KEY support
 * Driver, HOT-KEY screen captures
-* Interface, HOT-KEY assignment
+* Driver, HOT-KEYs to enable/disable logging
+* Interface, Change HOT-KEY assignments
 * Viewer, jump to end instead of paging down to reach end.
+* Switch between COLOR and MONOCHROME logging.
 
 Just under consideration. These would also increase the size of the device
 driver. But, they would probably not provide much benefit to actual usage.
@@ -21,3 +32,4 @@ driver. But, they would probably not provide much benefit to actual usage.
 * Remove direct reading of log in Interface program by adding a "read from log"
 * Remove direct clearing of log by Interface program with a "clear the log"
 * Add DOS support for reading and writing to LOG character device.
+
