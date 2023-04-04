@@ -3,6 +3,7 @@ To-Do for initial release:
 * Driver, Advanced logging method
 * UMB memory support for LOG
 * LOW memory support for LOG
+* Interface, STDIN logging pass-through option
 
 Maybe do in later releases. They would increase the size of device driver. So,
 might not. We will see.
