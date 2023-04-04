@@ -342,7 +342,7 @@ Option_View:
 	VideoSettings
 	push		bx			; save video segment for later
 	push		dx			; save regen size in words
-	call		ScreenSave
+	call		ScreenSave		; only happens in supported modes
 
 	call		LogViewer
 
@@ -605,23 +605,23 @@ DrawPage:
 
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
-
-.StartElsewhere:
+	xor		di, di			; for direct video
+; .StartElsewhere:
 	call		FetchXMS
+	or		[Viewer.Flags], byte vfAtRightmost
 	and		[Viewer.Flags], byte (-1 - vfAtLeftmost) ; not vfAtLeftmost
 	cmp		[Viewer.LeftOfs], word 0
 	jne		.Rows
 	or		[Viewer.Flags], byte vfAtLeftmost
 .Rows:
 	push		cx
-	mov		cx, [VideoData+TVideoData.Columns]
 	xor		si, si
-	xor		di, di
+	call		.SkipLeftOfs
+	mov		cx, [VideoData+TVideoData.Columns]
 .Columns:
 	push		cx
 	test		si, si
 	jnz		.LineEnded
-	inc		di
 	cmp		bl, 0x0d
 	je		.HitEOL
 	cmp		bl, 0x0a
@@ -649,25 +649,40 @@ DrawPage:
 	jc		.AtNextLine
 	call		.FindEOL
 .AtNextLine:
-	mov		cx, [Viewer.WidthMax]
-	cmp		di, cx
-	jbe		.NotWider
-	cmp		cx, di
-.NotWider:
-	mov		[Viewer.WidthMax], cx
-	or 		[Viewer.Flags], byte vfAtRightMost
-	add		cx, [VideoData+TVideoData.Columns]
-	jc		.AtRightmost
-	cmp		cx, di
-	ja		.AtRightmost
-	and 		[Viewer.Flags], byte (-1 - vfAtRightmost) ; not vfAtRightmost
 
+	test		si, si
+	jnz		.AtRightmost
+	and		[Viewer.Flags], byte (-1 - vfAtRightmost)
 .AtRightmost:
+
 	mov		[Viewer.Bottom], ax
 	mov		[Viewer.Bottom+2], dx
 	pop		cx
 	loop		.Rows
  	ret
+
+.SkipLeftOfs:
+ 	; skip left offset columns
+	mov		cx, [Viewer.LeftOfs]
+	test		cx, cx
+	jz		.SkipDone
+.Skip:
+	test		si, si
+	jnz		.SkipDone
+	cmp		bl, 0x0d
+	je		.SkipAll
+	cmp		bl, 0x0a
+	jne		.SkipChar
+.SkipAll:
+	inc		si
+	jmp		.SkipDone
+.SkipChar:
+	call		NextXMS
+	jc		.SkipDone
+	loop		.Skip
+.SkipDone:
+	ret
+
 
 .FindEOL:
 	cmp		bl, 0x0a
@@ -675,12 +690,10 @@ DrawPage:
 	cmp		bl, 0x0d
 	je		.MaybeEOL
 	call 		NextXMS
-	inc		di
 	jc		.FoundEOL
 	jmp		.FindEOL
 .MaybeEOL:
 	call 		NextXMS
-	inc		di
 	cmp		bl, 0x0a
 	jne		.FoundEOL
 .AtEOL:
@@ -689,6 +702,17 @@ DrawPage:
 	ret
 
 .DisplayChar:
+	cmp		[VideoData+TVideoData.Direct], byte 1
+	jne		.DisplayWithBIOS
+	push		es
+	mov		es, [VideoData+TVideoData.VSeg]
+	mov		[es:di], bx
+	inc		di
+	inc		di
+	pop		es
+	ret
+
+.DisplayWithBIOS:
  	push		ax
 	push		dx
 	push		bx ; char/attr

@@ -142,8 +142,9 @@ struc	TVideoData
 	.Page:		resb	1		; current video page
 	.EndBDA:				; end of copied video BIOS data
 	; calculated data
-	.Direct:	resb 1			; direct video supported
-	.Rows:		resw 1			; rows on screen
+	.Direct:	resb 	1		; direct video supported
+	.Rows:		resw 	1		; rows on screen
+	.VSeg:		resw 	1		; direct video segment
 endstruc
 
 ; -----------------------------------------------------------------------------
@@ -935,6 +936,7 @@ PROC_VideoSettings:
 	stc
 .Done:
 	mov		[es:di], cx	; TVideoData.Rows
+	mov		[es:di+2], bx	; TVideoData.VSeg
 	pop		ds
 	pop		es
 	pop		si
