@@ -444,13 +444,19 @@ LogViewer:
 	jmp		DrawPage
 
 .PgUp:
+	test		[Viewer.Flags], byte vfAtTop
+	jnz		.Done
 	mov		cx, [VideoData+TVideoData.Rows]
 	dec		cx
+	or		[Viewer.Flags], byte vfNoDraw
 .PgUpLoop:
 	push		cx
 	call		.Up
 	pop		cx
 	loop		.PgUpLoop
+	and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	jmp		DrawPage
+
 .Up:
 	test		[Viewer.Flags], byte vfAtTop
 	jnz		.Done
@@ -458,17 +464,30 @@ LogViewer:
 	jmp		DrawPage
 
 .EndKey:
-	call		.Down
+	; or		[Viewer.Flags], byte vfNoDraw
+	; call		.Down
+	; and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	; test		[Viewer.Flags], byte vfAtBottom
+	; jz		.EndKey
+	; jmp		DrawPage
 	test		[Viewer.Flags], byte vfAtBottom
-	jz		.EndKey
+	jnz		.Done
+	call		.PgDn
+	jmp		.EndKey
+
 .PgDn:
+	test		[Viewer.Flags], byte vfAtBottom
+	jnz		.Done
 	mov		cx, [VideoData+TVideoData.Rows]
 	dec		cx
+	or		[Viewer.Flags], byte vfNoDraw
 .PgDnLoop:
 	push		cx
 	call		.Down
 	pop		cx
 	loop		.PgDnLoop
+	and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	jmp		DrawPage
 .Down:
 	test		[Viewer.Flags], byte vfAtBottom
 	jnz		.Done
@@ -486,9 +505,15 @@ LogViewer:
 	jmp		DrawPage
 
 .CtrlRight:
+	test		[Viewer.Flags], byte vfAtRightmost
+	jnz		.Done
+	or		[Viewer.Flags], byte vfNoDraw
+.CtrlRightLoop:
 	call		.Right
 	test		[Viewer.Flags], byte vfAtRightmost
-	jz		.CtrlRight
+	jz		.CtrlRightLoop
+	and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	jmp		DrawPage
 
 .Right:
 	test		[Viewer.Flags], byte vfAtRightmost
@@ -502,8 +527,25 @@ PrevLine:
 	and		[Viewer.Flags], byte (-1 - vfAtBottom)
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
+	; previous line ended in either CR, LF or CRLF
 	call		PrevXMS
 	jc		.AtFirst
+	cmp		bl, 0x0d	; if CR, skim to line start
+	je		.Skimmer
+	call		PrevXMS		; not CR, had to be LF, so fetch another
+	jc		.AtFirst
+	cmp		bl, 0x0d	; if previous not CR, then just LF ending
+	jne		.Skimming
+.Skimmer:
+	call		PrevXMS
+	jc		.AtFirst
+.Skimming:
+	cmp		bl, 0x0a
+	je		.ForwardOne
+	cmp		bl, 0x0d
+	jne		.Skimmer
+.ForwardOne:
+	call		NextXMS
 .AtFirst:
 	mov		[Viewer.Top], ax
 	mov		[Viewer.Top+2], dx
@@ -566,6 +608,10 @@ DrawPage:
 
 .StartElsewhere:
 	call		FetchXMS
+	and		[Viewer.Flags], byte (-1 - vfAtLeftmost) ; not vfAtLeftmost
+	cmp		[Viewer.LeftOfs], word 0
+	jne		.Rows
+	or		[Viewer.Flags], byte vfAtLeftmost
 .Rows:
 	push		cx
 	mov		cx, [VideoData+TVideoData.Columns]
@@ -585,7 +631,10 @@ DrawPage:
 .LineEnded:
 	mov		bx, 0x0720
 .Display:
+	test		[Viewer.Flags], byte vfNoDraw
+	jnz		.NoDraw
 	call		.DisplayChar
+.NoDraw:
 	test		si, si
 	jnz		.NoFetch
 	call		NextXMS
@@ -598,22 +647,7 @@ DrawPage:
 	; find start of next line
 	call 		FetchXMS
 	jc		.AtNextLine
-.FindEOL:
-	cmp		bl, 0x0a
-	je		.AtEOL
-	cmp		bl, 0x0d
-	je		.MaybeEOL
-	call 		NextXMS
-	inc		di
-	jc		.AtNextLine
-	jmp		.FindEOL
-.MaybeEOL:
-	call 		NextXMS
-	inc		di
-	cmp		bl, 0x0a
-	jne		.AtNextLine
-.AtEOL:
-	call 		NextXMS
+	call		.FindEOL
 .AtNextLine:
 	mov		cx, [Viewer.WidthMax]
 	cmp		di, cx
@@ -635,6 +669,24 @@ DrawPage:
 	loop		.Rows
  	ret
 
+.FindEOL:
+	cmp		bl, 0x0a
+	je		.AtEOL
+	cmp		bl, 0x0d
+	je		.MaybeEOL
+	call 		NextXMS
+	inc		di
+	jc		.FoundEOL
+	jmp		.FindEOL
+.MaybeEOL:
+	call 		NextXMS
+	inc		di
+	cmp		bl, 0x0a
+	jne		.FoundEOL
+.AtEOL:
+	call 		NextXMS
+.FoundEOL:
+	ret
 
 .DisplayChar:
  	push		ax
@@ -671,13 +723,10 @@ DrawPage:
 ; -----------------------------------------------------------------------------
 
 NextXMS:
-	cmpdd		dx, ax, es:Header(XMS.Head)
-	jne		.CanInc
-	or		[Viewer.Flags], byte vfAtBottom
-	stc
-	ret
-.CanInc:
+	push		dx
+	push		ax
 	and		[Viewer.Flags], byte (-1 - vfAtBottom) ; not vfAtBottom
+
 	%ifdef NO_SPLIT_BUFFER
 		cmpdd		dx, ax, es:Header(XMS.Top)
 	%else
@@ -695,8 +744,19 @@ NextXMS:
 	inc		dx
 .OneByte:
 	inc		ax
-	jnz		FetchXMS
+	jnz		.Try
 	inc		dx
+.Try:
+	cmpdd		dx, ax, es:Header(XMS.Head)
+	jne		.LooksGood
+	or		[Viewer.Flags], byte vfAtBottom
+	pop		ax
+	pop		dx
+	stc
+	ret
+.LooksGood:
+	pop 		bx
+	pop		bx
 	jmp		FetchXMS
 
 ; -----------------------------------------------------------------------------

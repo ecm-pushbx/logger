@@ -85,6 +85,7 @@
 %idefine vfAtLeftmost   00000100b
 %idefine vfAtRightmost  00001000b
 %idefine vfIsEmptyLog   10000000b
+%idefine vfNoDraw	11000000b
 
 ; -----------------------------------------------------------------------------
 
