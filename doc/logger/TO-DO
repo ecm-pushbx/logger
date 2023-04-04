@@ -11,6 +11,7 @@ driver's memory footprint.
 * HTML format log output.
 * Export log or selection from viewer to file (TEXT, ANSI, HTML).
 * Resize LOG capacity.
+* Force simple capture mode even when Advanced Capture is supported.
 * Enable/Disable Log JAM mode.
 * Single EXE instead of SYS+COM files.
 

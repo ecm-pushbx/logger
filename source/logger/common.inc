@@ -105,6 +105,8 @@ struc TDriverHeader
 
 	.Flush		resd 1			; far call to flush send buffer
 
+	.BMSeg:		resw 1			; UMB/LOW memory buffer segment
+
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
 	.XMS.Size:	resw 1			; Size in KB to allocate
 	.XMS.Head:	resd 1			; next buffer write position

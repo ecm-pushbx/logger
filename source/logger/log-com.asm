@@ -44,6 +44,7 @@ section .text
 
 %define COLOR_MESSAGE	0x0e
 %define COLOR_STDIN	0x0f
+%define COLOR_MONO	0x07
 
 %define Header(x) TDriverHeader. %+ x
 
@@ -418,12 +419,6 @@ LogViewer:
 	call		bx
 	jmp		.WaitKeyPress
 
-	; Navigation Keys
-.AtRightmost:
-
-	; WordAsHex	ax
-	; ByteAsChar	0x0d,0x0a
-	jmp		.WaitKeyPress
 .Done:
 	ret
 
@@ -857,14 +852,17 @@ FetchXMS:
 	jz		DieXMSError
 	pop		si
 	pop		ax
+	mov		bx, [Buffer]
 	test		al, 1 		; odd bytes are only requested when log
 	jnz		.HighByte	; is stored in monochrome
-	mov		bx, [Buffer]
+	test		[OrgStat], byte sfInColor
+	jz		.Monochrome
 	clc
 	ret
 .HighByte:
-	mov		bl, 0x07	; swap high/low bytes and set color
-	xchg		bh, bl
+	mov		bl, bh
+.Monochrome:
+	mov		bh, COLOR_MONO
 	clc
 	ret
 

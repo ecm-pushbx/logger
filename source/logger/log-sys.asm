@@ -91,6 +91,8 @@ istruc TDriverHeader
 	at .Flush,		dd FlushBuffer	; Function to Flush the current
 						; buffer to Log storage.
 
+	at .BMSeg,		dw 0		; UMB/LOW memory buffer segment
+
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw 32		; Default KB size to allocate
 	at .XMS.Head,		dd 0		; next buffer write position
@@ -617,17 +619,15 @@ Initialize:
 
 ; -----------------------------------------------------------------------------
 
-Option_XMS:
-	test		[Header(Status)], byte sfEnabled
-	jnz		Option_Done
-
+ConfigXMSDriver:
 	; Test for XMS Memory
 	mov		ax, 0x4300
 	int		0x2f
 	cmp		al, 0x80
 	je		.XMSPresent
 	mov		dx, NoXMSDriver
-	jmp		Option_Failed
+	stc
+	ret
 
 .XMSPresent:
 	; Get Driver Address
@@ -637,6 +637,17 @@ Option_XMS:
 	mov		[Header(XMS.Driver)], bx
 	mov		[Header(XMS.Driver)+2], es
 	pop		es
+	clc
+	ret
+
+; -----------------------------------------------------------------------------
+
+Option_XMS:
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+
+	call		ConfigXMSDriver
+	jc		Option_Failed
 
 	; Allocate XMS Memory
 	mov		ah, 0x09
@@ -665,7 +676,18 @@ Option_XMS:
 Option_UMB:
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
-	PrintMessage	NoUMBSupport
+	call		ConfigXMSDriver
+	jc		Option_Failed
+
+	mov		ah, 0x10
+	mov		dx, 0x5
+	call		far [Header(XMS.Driver)]
+	test		ax, ax
+	jnz		.UMBAllocated
+	mov		dx, NoUMBAlloc
+	jmp		Option_Failed
+
+.UMBAllocated:
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -673,7 +695,7 @@ Option_UMB:
 Option_LOW:
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
-	PrintMessage	NoLOWSupport
+	PrintMessage	NoLOWAlloc
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -791,11 +813,8 @@ NoXMSAlloc:
 	db	'Unable to allocate XMS memory.',0x0d,0x0a,'$'
 NoUMBAlloc:
 	db	'Unable to allocate UMB memory.',0x0d,0x0a,'$'
-
-NoUMBSupport:
-	db	'UMB memory not supported.',0x0d,0x0a,'$'
-NoLOWSupport:
-	db	'LOW memory not supported.',0x0d,0x0a,'$'
+NoLOWAlloc:
+	db	'Unable to allocate UMB memory.',0x0d,0x0a,'$'
 
 NotActivated:
 	db	'Boot message logging not enabled.$'
