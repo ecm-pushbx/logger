@@ -44,7 +44,6 @@ section .text
 
 %define COLOR_MESSAGE	0x0e
 %define COLOR_STDIN	0x0f
-%define COLOR_SPACE	0x0720
 
 %define Header(x) TDriverHeader. %+ x
 
