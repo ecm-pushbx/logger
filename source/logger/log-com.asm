@@ -42,6 +42,10 @@ section .text
 
 %define Buffer_Size 2	; for now, a word at a time is good enough
 
+%define COLOR_MESSAGE	0x0e
+%define COLOR_STDIN	0x0f
+%define COLOR_SPACE	0x0720
+
 %define Header(x) TDriverHeader. %+ x
 
 Initialize:
@@ -117,7 +121,7 @@ DriverFound:
 	StdIn
 	jc		.NoStdInput
 	or		[Flags], byte ofStdIn
-	mov		ah, 0x47
+	mov		ah, COLOR_STDIN
 .LoopStdIn:
 	call		AppendBuffer
 	StdIn
@@ -1028,7 +1032,7 @@ Option_Msg:
 	or		[Flags], byte ofKeepStatus
 	call		FlushBuffer  ; should already be empty, but won't hurt
 	cld
-	mov		ah, 0x07
+	mov		ah, COLOR_MESSAGE
 	jmp		.SkipIndent
 .SkipChar:
 	inc		di
