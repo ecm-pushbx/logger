@@ -68,6 +68,7 @@
 %idefine sfInColor	00010000b
 %idefine sfLogJam	00100000b
 %idefine sfLogFull	01000000b
+%idefine sfLogInUMB	10000000b
 
 ; interface status and option flags
 %idefine ofKeepStatus	00000001b	; bit 0 = restore driver status on exit
@@ -737,12 +738,18 @@ PROC_ParseOptions:
 	%endif
 	WordAsInt	[es:TDriverHeader.XMS.Size]
 	PrintMessage	%%KB
-	cmp		[es:TDriverHeader.XFR.DstHandle], word 0
-	je		%%NotXMS
+	mov		dx, [es:TDriverHeader.BMSeg]
+	test		dx, dx
+	jnz		%%NotXMS
 	PrintMessage	%%XMS
 	jmp		%%Allocated
 %%NotXMS:
-
+	cmp		dx, 0xa000
+	jae		%%IsUMB
+	PrintMessage	%%LOW
+	jmp		%%Allocated
+%%IsUMB:
+	PrintMessage	%%UMB
 %%Allocated:
 	PrintMessage	%%MEM
 	test		[es:TDriverHeader.Status], byte sfInColor
@@ -770,9 +777,13 @@ PROC_ParseOptions:
 	jmp	%%Done
 
 %%KB:	db	'KB of $'
-%%MEM:	db	' of memory allocated for $'
+%%MEM:	db	' memory allocated for $'
 %%XMS:
 	db	'XMS$'
+%%UMB:
+	db	'UMB$'
+%%LOW:
+	db	'LOW$'
 
 %%COLOR:db	'color$'
 %%MONO: db	'monochrome'

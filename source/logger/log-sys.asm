@@ -493,20 +493,29 @@ SendToLog:
 	ret
 
 ; -----------------------------------------------------------------------------
-
-
-; -----------------------------------------------------------------------------
-; Could be released if direct video mode not supported.
-; -----------------------------------------------------------------------------
-
-
-; -----------------------------------------------------------------------------
-; Should be released if keyboard snapshots are disabled by driver or are not
-; supported by (ancient) hardware.
+; Not needed if direct video mode not supported.
 ; -----------------------------------------------------------------------------
 
 ; -----------------------------------------------------------------------------
-; Always released after Initialization
+; Not needed if using XMS Memory
+; Only required for UMB and LOW memory LOG storage
+; -----------------------------------------------------------------------------
+
+Memory_Handler:
+	cmp		ah, 0x0b
+	je		.Transfer
+	xor		ax, ax
+	mov		bl, 0x80	; function not supported
+	retf
+.Transfer:
+	retf
+
+; -----------------------------------------------------------------------------
+; Not needed if keyboard snapshots are disabled by driver
+; -----------------------------------------------------------------------------
+
+; -----------------------------------------------------------------------------
+; Not needed after Initialization and always released.
 ; -----------------------------------------------------------------------------
 
 Initialize:
@@ -660,6 +669,11 @@ Option_XMS:
 	jmp		Option_Failed
 
 .XMSAllocated:
+	; jmp		SuccessfulAlloc
+
+; -----------------------------------------------------------------------------
+
+SuccessfulAlloc:
 	; set byte size of XMS memory allocated
 	mov		ax, [Header(XMS.Size)]
 	mov		dx, 1024
@@ -676,27 +690,151 @@ Option_XMS:
 Option_UMB:
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
+
+; -----------------------------------------------------------------------------
+
+UMB_Thru_DOS:
+	mov		ax, 0x5800	; Get Alloc Strategy
+	int		0x21
+	jc		UMB_Thru_XMS
+	push		ax		; save Strategy
+	mov		ax, 0x5802	; Get UMB Link State
+	int		0x21
+	push		ax		; save Link State
+	jnc		.LinkUMBs
+.LinkFailed:
+	pop		ax
+	pop		ax
+	jmp		UMB_Thru_XMS
+.LinkUMBs:
+	cmp		al, 0x01
+	je		.SetStrategy
+	ja		.LinkFailed
+	mov		bx, 0x0001
+	mov		ax, 0x5803
+	int		0x21
+	jc		.LinkFailed
+.SetStrategy:
+	mov		ax, 0x5801
+	mov		bx, 0x0041	; best fit, high memory
+	int		0x21
+	jc		.RestoreSettings
+
+	or		[Header(Status)], byte sfLogInUMB
+	call		DOSAlloc
+	test		[Header(Status)], byte sfEnabled
+	jnz		.RestoreSettings
+	and		[Header(Status)], byte (-1 - sfLogInUMB)
+
+.RestoreSettings:
+	pop		bx	; was link state ax
+	xor		bh, bh
+	mov		ax, 0x5803
+	int		0x21
+	; jc 		Cannot Restore, this better not happen!
+	pop		bx	; was strategy ax
+	xor		bh, bh
+	mov		ax, 0x5801
+	int		0x21
+	; jc 		Cannot Restore, this better not happen either!
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+;	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+UMB_Thru_XMS:
+	; try to allocate UMB through XMS Driver for when DOS is not using UMB
 	call		ConfigXMSDriver
 	jc		Option_Failed
-
+	mov		ax, [Header(XMS.Size)]	; Size in KB
+	mov		bx, 0x0040
+	mul		bx			; kb * 1024 / 16 = paragraphs
+	xchg		ax, dx
+	test		ax, ax
+	jz		.TryUMB
+	mov		dx, 0xffff
+.TryUMB:
 	mov		ah, 0x10
-	mov		dx, 0x5
+	xor		bx, bx
 	call		far [Header(XMS.Driver)]
 	test		ax, ax
 	jnz		.UMBAllocated
+	cmp		bl, 0xb0
+	jne		.NotTooBig
+	push		dx
+	PrintMessage	MaxFreeUMB
+	pop		ax
+	xor		dx, dx
+	mov		bx, 0x0040
+	div		bx			; paragraphs * 16 / 1024 = kb
+	WordAsInt	ax
+	PrintMessage	UMBKBytes
+	jmp		.UMBFailed
+.NotTooBig:
+	cmp		bl, 0xb1
+	jne		.UMBFailed
+	; PrintMessage 	NoUMBAvail
+	PrintMessage	NotEnoughUMB
+	jmp		.UMBFailed
+.UMBFailed:
 	mov		dx, NoUMBAlloc
 	jmp		Option_Failed
 
 .UMBAllocated:
+	or		[Header(Status)], byte sfLogInUMB
+	; bx = segment
+	; dx = size, but don't care
+	; jmp		SuccessfulAlloc
 	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+DOSAlloc:
+	mov		ax, [Header(XMS.Size)]	; Size in KB
+	mov		bx, 0x0040
+	mul		bx			; kb * 1024 / 16 = paragraphs
+	xchg		ax, bx
+	test		dx, dx
+	jz		.TryAlloc
+	mov		bx, 0xffff
+.TryAlloc:
+	mov		ah, 0x48
+	int		0x21			; ax=segment, if error bx=max
+	jnc		.Allocated
+	ret
+
+.Allocated:
+	test		[Header(Status)], byte sfLogInUMB
+	jz		.Success
+	; test if upper memory block
+	cmp		ax, 0xa000
+	jae		.Success
+	; not in upper memory, then free block
+	push		es
+	mov		es, ax
+	mov		ah, 0x49
+	int		0x21
+	pop		es
+	ret
+.Success:
+	; Switch to XMS like drive for LOW/UMB memory
+	mov		[Header(BMSeg)], ax
+	mov		[Header(XMS.Driver)], word Memory_Handler
+	mov		[Header(XMS.Driver)+2], cs
+	or		[Header(Status)], byte sfEnabled
+	ret
 
 ; -----------------------------------------------------------------------------
 
 Option_LOW:
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
-	PrintMessage	NoLOWAlloc
-	jmp		Option_Done
+	call		DOSAlloc
+	test		[Header(Status)], byte sfEnabled
+	jnz		Option_Done
+	mov		dx, NotEnoughLOW
+	jmp		Option_Failed
 
 ; -----------------------------------------------------------------------------
 
@@ -813,8 +951,16 @@ NoXMSAlloc:
 	db	'Unable to allocate XMS memory.',0x0d,0x0a,'$'
 NoUMBAlloc:
 	db	'Unable to allocate UMB memory.',0x0d,0x0a,'$'
-NoLOWAlloc:
-	db	'Unable to allocate UMB memory.',0x0d,0x0a,'$'
+MaxFreeUMB:
+	db	'Largest free UMB is $'
+UMBKBytes:
+	db	'Kb.',0x0a,0x0d,'$'
+
+NotEnoughUMB:
+	db	'Insufficient UMB space available.',0x0a,0x0d,'$'
+NotEnoughLOW:
+	db	'Insufficient free LOW memory.',0x0a,0x0d,'$'
+
 
 NotActivated:
 	db	'Boot message logging not enabled.$'
