@@ -91,7 +91,7 @@ istruc TDriverHeader
 	at .Flush,		dd FlushBuffer	; Function to Flush the current
 						; buffer to Log storage.
 
-	at .BMSeg,		dw 0		; UMB/LOW memory buffer segment
+
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw 32		; Default KB size to allocate
@@ -104,7 +104,8 @@ istruc TDriverHeader
 	at .XFR.Count,		dd 0		; byte count { must be even }
 	at .XFR.SrcHandle,	dw 0		; 0 = conventional memory
 	at .XFR.SrcAddr,	dd 0		; pointer to source buffer
-	at .XFR.DstHandle,	dw -1		; XMS handle
+	at .XFR.DstHandle,	dw -1		; XMS handle, or
+						; UMB/LOW memory buffer segment
 	at .XFR.DstAddr,	dd 0		; pointer to destination
 
 	at .XFR.Buffer,		db 0		; TTL XFR Buffer of MaxXFRSize
@@ -329,7 +330,7 @@ SendToLog:
 	or		[Header(Status)], byte sfLogFull
 	test 		[Header(Status)], byte sfLogJam
 	jz		.NoLogJam
-	and		[Header(Status)], byte 11111110b	; not sfEnabled
+	and		[Header(Status)], byte (-1 - sfEnabled)	; not sfEnabled
 	jmp		.SendDone
 
 .NoLogJam:
@@ -505,9 +506,10 @@ Memory_Handler:
 	cmp		ah, 0x0b
 	je		.Transfer
 	xor		ax, ax
-	mov		bl, 0x80	; function not supported
+	mov		bx, 0x80	; function not supported
 	retf
 .Transfer:
+	mov		ax, 0x01
 	retf
 
 ; -----------------------------------------------------------------------------
@@ -794,7 +796,7 @@ DOSAlloc:
 	mov		ax, [Header(XMS.Size)]	; Size in KB
 	mov		bx, 0x0040
 	mul		bx			; kb * 1024 / 16 = paragraphs
-	xchg		ax, bx
+	mov		bx, ax
 	test		dx, dx
 	jz		.TryAlloc
 	mov		bx, 0xffff
@@ -819,12 +821,10 @@ DOSAlloc:
 	ret
 .Success:
 	; Switch to XMS like drive for LOW/UMB memory
-	mov		[Header(BMSeg)], ax
+	mov		[Header(XFR.DstHandle)], ax
 	mov		[Header(XMS.Driver)], word Memory_Handler
 	mov		[Header(XMS.Driver)+2], cs
-	or		[Header(Status)], byte sfEnabled
-	ret
-
+	jmp		SuccessfulAlloc
 ; -----------------------------------------------------------------------------
 
 Option_LOW:
@@ -855,8 +855,7 @@ Option_COLOR:
 Option_MONO:
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
-	; not sfInColor 00010000b
-	and		[Header(Status)], byte 11101111b
+	and		[Header(Status)], byte (-1 - sfInColor) ; not sfInColor
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------

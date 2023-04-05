@@ -34,7 +34,7 @@
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
-;%define DEBUG
+%define DEBUG
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
 ; -----------------------------------------------------------------------------
@@ -105,8 +105,6 @@ struc TDriverHeader
 	.Status:	resw 1			; Device driver Status
 
 	.Flush		resd 1			; far call to flush send buffer
-
-	.BMSeg:		resw 1			; UMB/LOW memory buffer segment
 
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
 	.XMS.Size:	resw 1			; Size in KB to allocate
@@ -738,12 +736,14 @@ PROC_ParseOptions:
 	%endif
 	WordAsInt	[es:TDriverHeader.XMS.Size]
 	PrintMessage	%%KB
-	mov		dx, [es:TDriverHeader.BMSeg]
-	test		dx, dx
-	jnz		%%NotXMS
+	mov		dx, [es:TDriverHeader.XMS.Driver+2]
+	mov		ax, es
+	cmp		ax, dx
+	je		%%NotXMS
 	PrintMessage	%%XMS
 	jmp		%%Allocated
 %%NotXMS:
+	mov		dx, [es:TDriverHeader.XFR.DstHandle]
 	cmp		dx, 0xa000
 	jae		%%IsUMB
 	PrintMessage	%%LOW
