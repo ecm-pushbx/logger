@@ -28,7 +28,7 @@ LOGGER.SYS [XMS | UMB | LOW] [COLOR | MONO] [JAM] [size]
 	LOW	Try lower memory for log storage.
 
 	COLOR	Record color attributes associated with log text.
-	MONO	Only record log text.
+	MONO	Only record log text (doubles log capacity).
 
 	JAM	Stop recording if log is full. Normally if the buffer becomes
 		full, older logged text is discarded to make room.
@@ -46,7 +46,7 @@ The placement of the XMS, UMB and LOW options is very important. The attempt
 to allocate a buffer occurs when one of those options is encountered and uses
 the current settings. When no options are provided, the device driver will use:
 
-256 COLOR XMS 32 MONO UMB 16 MONO LOW
+256 COLOR XMS 16 MONO UMB 16 MONO LOW
 
 This will cause the driver to first try to allocate a 256K XMS buffer using
 color capture mode. If that does not succeed, it will continue with next series
@@ -54,6 +54,19 @@ of options.
 
 The JAM option will apply to all logging regardless of which buffer gets
 allocated or its position in the option list.
+
+The number of pages that can be stored per KB can very widely based on the
+text being logged. In monochrome mode, it could range from about 0.5 to 512
+pages. But generally, you can expect about 1-3 pages per KB.
+
+Logging to UMB or LOW memory will increase the drivers memory footprint by
+roughly 100 bytes.
+
+When logging to UMB, the driver will attempt to allocate memory using different
+methods. First, it will attempt to create the LOG storage buffer using DOS
+functions for compatibility with system CONFIG setting "DOS=UMB". If this does
+not succeed, it will try using the extended memory driver to directly allocate
+buffer space.
 
 -------------------------------------------------------------------------------
 

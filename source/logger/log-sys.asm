@@ -1073,7 +1073,7 @@ NewLine:
 	db 	0x0d,0x0a,'$'
 
 DefaultOptions:
-	db	'256 COLOR XMS 32 MONO UMB 16 MONO LOW',0
+	db	'256 COLOR XMS 16 MONO UMB 16 MONO LOW',0
 
 HadOption:
 	db	0
