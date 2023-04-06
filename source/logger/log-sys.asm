@@ -686,6 +686,8 @@ Initialize:
 	int		0x21
 
 .Success:
+	mov		dx, cs
+
 	PrintStatus	cs
 	PrintMessage	Activated
 	%ifdef DEBUG
