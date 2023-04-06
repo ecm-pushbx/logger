@@ -822,11 +822,11 @@ UMB_Thru_DOS:
 	int		0x21
 	jc		.RestoreSettings
 
-	or		[Header(Status)], byte sfLogInUMB
+	inc		byte [LogInUMB]
 	call		DOSAlloc
 	test		[Header(Status)], byte sfEnabled
 	jnz		.RestoreSettings
-	and		[Header(Status)], byte (-1 - sfLogInUMB)
+	dec		byte [LogInUMB]
 
 .RestoreSettings:
 	pop		bx	; was link state ax
@@ -884,7 +884,7 @@ UMB_Thru_XMS:
 	jmp		Option_Failed
 
 .UMBAllocated:
-	or		[Header(Status)], byte sfLogInUMB
+	; or		[Header(Status)], byte sfLogInUMB
 	; bx = segment
 	; dx = size, but don't care
 	; jmp		SuccessfulAlloc
@@ -907,8 +907,8 @@ DOSAlloc:
 	ret
 
 .Allocated:
-	test		[Header(Status)], byte sfLogInUMB
-	jz		.Success
+	cmp		[LogInUMB], byte 0
+	je		.Success
 	; test if upper memory block
 	cmp		ax, 0xa000
 	jae		.Success
@@ -1077,3 +1077,5 @@ DefaultOptions:
 
 HadOption:
 	db	0
+LogInUMB:
+	db 	0

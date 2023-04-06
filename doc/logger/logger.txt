@@ -57,7 +57,7 @@ allocated or its position in the option list.
 
 The number of pages that can be stored per KB can very widely based on the
 text being logged. In monochrome mode, it could range from about 0.5 to 512
-pages. But generally, you can expect about 1-3 pages per KB.
+pages. But generally, you can expect about 1 page per KB.
 
 Logging to UMB or LOW memory will increase the drivers memory footprint by
 roughly 100 bytes.

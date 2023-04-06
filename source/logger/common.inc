@@ -80,17 +80,16 @@
 
 %define DriverIDLength 8
 
-; driver status flags
-%idefine sfEnabled 	00000001b
-%idefine sfModeChange	00000010b
-%idefine sfDirectMode	00000100b
-%idefine sfEGAorBetter	00001000b
-%idefine sfInColor	00010000b
-%idefine sfLogJam	00100000b
-%idefine sfLogFull	01000000b
-%idefine sfLogInUMB	10000000b
+; driver status flags (low byte)
+%idefine sfEnabled 	00000001b	; bit 0 = logging enabled
+%idefine sfModeChange	00000010b	; bit 1 = mode changed, re-config driver
+%idefine sfDirectMode	00000100b	; bit 2 = advanced capture mode
+%idefine sfEGAorBetter	00001000b	; bit 3 =
+%idefine sfInColor	00010000b	; bit 4 = include color attribs in log
+%idefine sfLogJam	00100000b	; bit 5 = stop when full
+%idefine sfLogFull	01000000b	; bit 6 = log full
 
-; interface status and option flags
+; interface status and option flags (low byte)
 %idefine ofKeepStatus	00000001b	; bit 0 = restore driver status on exit
 %idefine ofHadOptions	00000010b	; bit 1 = command line options provided
 %idefine ofColorPrint	00000100b	; bit 2 = MONO/ANSI printing selected
@@ -99,15 +98,16 @@
 %idefine ofStdIn	00100000b	; bit 5 = standard input added to log
 %idefine ofBadVersion   01000000b	; bit 6 = incompatible driver version
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
+; interface status and option flags (high byte)
 %idefine ofPassThru	00000001b	; bit 8 = also send any STDIN to STDOUT
 
 ; interface viewer navigation control flags
-%idefine vfAtTop	00000001b
-%idefine vfAtBottom     00000010b
-%idefine vfAtLeftmost   00000100b
-%idefine vfAtRightmost  00001000b
-%idefine vfIsEmptyLog   10000000b
-%idefine vfNoDraw	11000000b
+%idefine vfAtTop	00000001b	; bit 0 = can not scroll up
+%idefine vfAtBottom     00000010b	; bit 1 = can not scroll down
+%idefine vfAtLeftmost   00000100b	; bit 2 = can not scroll left
+%idefine vfAtRightmost  00001000b	; bit 3 = should not scroll right
+%idefine vfNoDraw	00010000b	; bit 4 = draw for calculations only
+%idefine vfIsEmptyLog   10000000b	; bit 7 = empty log
 
 ; -----------------------------------------------------------------------------
 
