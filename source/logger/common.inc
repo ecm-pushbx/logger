@@ -489,10 +489,13 @@ PROC_ParseOptions:
 	mov	cx, di
 .GetOptLoop:
 	mov	dl, [es:di]
-	;cmp	dl, 0x0d
-	;jbe	.GetOptDone
+	; check for separator
 	cmp	dl, 0x20
-	jbe	.GetOptDone
+	jbe	.GetOptDone	; anything that is a space or lower
+	cmp	dl, 0x3b
+	je	.GetOptDone	; semi-colon
+	cmp	dl, 0x2c
+	je	.GetOptDone	; comma
 	; ByteAsChar '*', dl, '*'
 	inc	di
 	jmp	.GetOptLoop
@@ -500,7 +503,12 @@ PROC_ParseOptions:
 	cmp	cx, di
 	jne	.SearchOption
 .GetOptNext:
-	cmp	[es:di], byte 0x20
+	; if it was a separator, continue processing
+	cmp	[es:di], byte 0x20 ; space
+	je	.NotDone
+	cmp	[es:di], byte 0x2c ; comma
+	je	.NotDone
+	cmp	[es:di], byte 0x3b ; semi-colon
 	je	.NotDone
 	ret
 .NotDone:

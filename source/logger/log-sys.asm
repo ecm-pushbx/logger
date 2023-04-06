@@ -1019,6 +1019,19 @@ OptionTable:
 	dw		Option_MONO
 	db		'MONO',0
 
+	dw		Option_XMS
+	db		'X', 0
+	dw		Option_UMB
+	db		'U', 0
+	dw		Option_LOW
+	db		'L', 0
+	dw		Option_JAM
+	db		'J', 0
+	dw		Option_COLOR
+	db		'C',0
+	dw		Option_MONO
+	db		'M',0
+
 	dw		0, Option_Unknown
 
 ; -----------------------------------------------------------------------------
