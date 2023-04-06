@@ -686,7 +686,13 @@ Initialize:
 	int		0x21
 
 .Success:
+	; if "XMS.Driver" segment is not our segment, we can dump the LOW/UMB
+	; memory LOG handler and reduce the memory footprint by ~112 bytes.
 	mov		dx, cs
+	cmp		dx, [Header(XMS.Driver)+2]
+	je		.KeepMemoryHandler
+	mov		[es:di+tREQUEST.Address], word Memory_Handler
+.KeepMemoryHandler:
 
 	PrintStatus	cs
 	PrintMessage	Activated
