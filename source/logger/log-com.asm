@@ -113,7 +113,7 @@ DriverFound:
 	; make sure buffer contents have been written.
 	call		far [es:Header(Flush)]
 
-	%warning Should add a test for I/O redirection. \
+WARNING	There should be a test for I/O redirection added. \
 	That way, only redirected text is captured and not keystrokes. \
 	Maybe later.
 

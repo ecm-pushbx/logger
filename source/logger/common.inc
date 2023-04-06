@@ -30,12 +30,32 @@
 
 ; NASM 2.15.05, or later
 
-; %define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
-			; and adjust TOP to last byte. Only whole "lines" or
-			; full send buffers are transfered.
+; Display messages for things that have not been implemented. They most likely
+; should be done for various reasons (like compatibility).
+; %define WARNINGS
 
-;%define DEBUG
+; include some debugging code and the DEBUG option in LOGGER.COM
+%define DEBUG
+
+; include a debugging data buffer for checking values
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
+
+; disable splitting send buffer to when wrapping writes around in the LOG
+; storage. This will include a TOP value in the device header and requires both
+; the device driver and interface program to be compiled accordingly. NON-split
+; sending was just an experiment to see if it reduced code size. But as it
+; turned out, the monitoring and updating of the the additional required
+; variables requires a couple more bytes of code than splitting the send buffer.
+;
+; %define NO_SPLIT_SEND
+
+; -----------------------------------------------------------------------------
+
+%macro WARNING 1-*
+	%ifdef WARNINGS
+		%warning %{1:-1}
+	%endif
+%endmacro
 
 ; -----------------------------------------------------------------------------
 
@@ -133,7 +153,7 @@ endstruc
 
 ; -----------------------------------------------------------------------------
 
-struc	TVideoData
+struc TVideoData
 	; data copied from BIOS memory area
 	.Mode:		resb	1		; current video mode
 	.Columns:	resw	1		; screen columns
@@ -147,6 +167,16 @@ struc	TVideoData
 	.Direct:	resb 	1		; direct video supported
 	.Rows:		resw 	1		; rows on screen
 	.VSeg:		resw 	1		; direct video segment
+endstruc
+
+; -----------------------------------------------------------------------------
+
+struc TTransfer
+	Count:	resd 1			; byte count { must be even }
+	SrcHandle:	resw 1		; 0 = conventional memory, or Handle
+	SrcAddr:	resd 1		; pointer to source buffer
+	DstHandle:	resw 1		; XMS handle
+	DstAddr:	resd 1		; pointer to destination
 endstruc
 
 ; -----------------------------------------------------------------------------
@@ -196,7 +226,14 @@ endstruc
 ; -----------------------------------------------------------------------------
 
 %imacro FindDeviceDriver 0
-; Not perfect or fast, But good enough for now.
+; Not perfect or fast, But good enough for now. There is most likely a far
+; better way to find out if the logging driver is loaded and it's location in
+; memory. But after trying a couple different things, I just settled on using
+; this method.
+
+WARNING	A test for machines with less 640k or less memory really needs added \
+	to the scan for the logger driver.
+
 PROC_FindDeviceDriver:
 	mov		bx, 0x0100
 	mov		dx, ds
@@ -815,6 +852,10 @@ PROC_ParseOptions:
 	ByteAsChar	':'
 	WordAsHex 	[es:TDriverHeader.XMS.Driver]
 	PrintMessage 	%%EOL
+	PrintMessage 	%%PreHandle
+	WordAsHex 	[es:TDriverHeader.XFR.DstHandle]
+	PrintMessage 	%%EOL
+
 	PrintMessage 	%%PreXMSKB
 	WordAsHex 	[es:TDriverHeader.XMS.Size]
 	PrintMessage 	%%EOL
@@ -855,7 +896,8 @@ PROC_ParseOptions:
 %%DriverSeg:	db	'DRIVER SEG: $'
 %%PreStat:	db	'STATUS:     $'
 %%PreData:	db	'DATA:       $'
-%%PreDriver:	db	'DRIVER XMS: $'
+%%PreDriver:	db	'MEMORY DRV: $'
+%%PreHandle:	db	'MEMORY HDL: $'
 %%PreXMSKB:	db	'ALLOCATED:  $'
 %%PreXMSMax:	db	'MAX:        $'
 %%PreXMSCount:	db	'COUNT:      $'

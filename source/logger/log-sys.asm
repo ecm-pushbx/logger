@@ -500,18 +500,28 @@ SendToLog:
 ; -----------------------------------------------------------------------------
 
 ; -----------------------------------------------------------------------------
-; Not needed if using XMS Memory
-; Only required for UMB and LOW memory LOG storage
+; Not needed if using XMS Memory. Only required for UMB and LOW memory LOG
+; storage. Basically, the far call to the XMM driver is replaced with a call
+; to this function. It is to just simplify reading and writing to LOW/UMB memory
+; when the logger driver is configured to use one of those locations. Only,
+; logger the driver and interface program will call this function. Therefore,
+; No error or bounds checking is performed here. Many things in this function
+; would be done differently if it were a "universal" memory drive interface.
+;
 ; -----------------------------------------------------------------------------
 
 Memory_Handler:
-	cmp		ah, 0x0b
-	je		.Transfer
-	xor		ax, ax
-	mov		bx, 0x80	; function not supported
-	retf
-.Transfer:
-	mov		ax, 0x01
+	; Since only function 0x0b will be called, don't bother testing for it
+	; cmp		ah, 0x0b
+	; je		.Transfer
+	; xor		ax, ax
+	; mov		bx, 0x80	; function not supported
+	; retf
+;.Transfer:
+
+.Done:
+	mov		ah, 0x01	; return ax != 0 for success
+					; don't bother with error code in bx
 	retf
 
 ; -----------------------------------------------------------------------------
