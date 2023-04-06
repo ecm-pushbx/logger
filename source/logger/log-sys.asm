@@ -519,7 +519,87 @@ Memory_Handler:
 	; retf
 ;.Transfer:
 
+	pushf
+	push		ds
+	push		es
+	push		si
+	push		di
+	push		cx
+	push 		dx
+
+	; DS:SI -> TTransfer record structure
+	cmp		[si+TTransfer.SrcHandle], word 0
+	jne		.SrcIsLog
+.SrcIsMem:
+	; could just discard upper word, but that would limit the LOW/UMB
+	; buffer to under 64k. That would most likely be fine. But, it is
+	; possible that for some strange and bizarre reason a larger LOG in
+	; low memory could be needed. So we will just to convert it.
+	; convert 32-bit offset to 20-bit address
+	mov		ax, [si+TTransfer.DstAddr+2]
+	mov		cl, 12
+	shl		ax, cl
+	mov		dx, ax
+	mov		ax, [si+TTransfer.DstAddr]
+	push		ax
+	mov		cl, 4
+	shr		ax, cl
+	add		dx, ax
+	pop		di ; was ax
+	and		di, 0x000f
+	add		dx, [si+TTransfer.DstHandle] ; contains buffer segment
+	mov		es, dx
+	; es:di -> destination LOG buffer
+	mov		ax, [si] ; get byte count
+	mov		cl, 1
+	shr		ax, cl	; divide by 2 for word count
+	mov		cx, ax
+	; cx = word count to transfer
+	lds		si, [si+TTransfer.SrcAddr]
+	; ds:si = source buffer address
+
+	cld
+	rep		movsw
+	jmp		.Done
+.SrcIsLog:
+	les		di, [si+TTransfer.DstAddr]
+	; ds:si = destination buffer address
+	; convert 32-bit offset to 20-bit address
+	mov		ax, [si+TTransfer.SrcAddr+2]
+	mov		cl, 12
+	shl		ax, cl
+	mov		dx, ax
+	mov		ax, [si+TTransfer.SrcAddr]
+	push		ax
+	mov		cl, 4
+	shr		ax, cl
+	add		dx, ax
+	pop		ax
+	and		ax, 0x000f
+	add		dx, [si+TTransfer.SrcHandle] ; contains buffer segment
+	push		dx
+	push		ax
+	; source LOG buffer dx:ax on stack
+	mov		ax, [si] ; get byte count
+	mov		cl, 1
+	shr		ax, cl	; divide by 2 for word count
+	mov		cx, ax
+	; cx = word count to transfer
+	pop		si ; was ax
+	pop		ds ; was dx
+	; ds:si -> source LOG Buffer
+	cld
+	rep		movsw
+	; jmp		.Done
+
 .Done:
+	pop		dx
+	pop		cx
+	pop		di
+	pop		si
+	pop		es
+	pop		ds
+	popf
 	mov		ah, 0x01	; return ax != 0 for success
 					; don't bother with error code in bx
 	retf

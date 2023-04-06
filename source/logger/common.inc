@@ -35,7 +35,7 @@
 ; %define WARNINGS
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
-%define DEBUG
+;%define DEBUG
 
 ; include a debugging data buffer for checking values
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
@@ -172,11 +172,11 @@ endstruc
 ; -----------------------------------------------------------------------------
 
 struc TTransfer
-	Count:	resd 1			; byte count { must be even }
-	SrcHandle:	resw 1		; 0 = conventional memory, or Handle
-	SrcAddr:	resd 1		; pointer to source buffer
-	DstHandle:	resw 1		; XMS handle
-	DstAddr:	resd 1		; pointer to destination
+	.Count:	resd 1			; byte count { must be even }
+	.SrcHandle:	resw 1		; 0 = conventional memory, or Handle
+	.SrcAddr:	resd 1		; pointer to source buffer
+	.DstHandle:	resw 1		; XMS handle
+	.DstAddr:	resd 1		; pointer to destination
 endstruc
 
 ; -----------------------------------------------------------------------------
