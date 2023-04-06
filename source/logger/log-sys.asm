@@ -348,14 +348,16 @@ SendToLog:
 %else
 	; ok we need to split the buffer and send it in two pieces
 
-	; calculate distance from HEAD dx:ax to MAX for first send
-	mov		bx, ax
-	mov		cx, [Header(XMS.Max)]	; MAX is greater than HEAD
-	sub		bx, cx			; so, don't care about borrow
+	; calculate distance from HEAD dx:ax to MAX bx:cx for first send
+	mov		bx, [Header(XMS.Max)]	; MAX is greater than HEAD
+	sub		bx, ax			; so, don't care about borrow
 
 	; bytes not in first send will go into second send
-	mov		cx, bx
-	sub		cx, [si]
+	mov		cx, [si]
+	sub		cx, bx
+
+	; bx=first send
+	; cx=second send
 
 	; save size of first & second send for later
 	push		bx

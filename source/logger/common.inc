@@ -30,11 +30,11 @@
 
 ; NASM 2.15.05, or later
 
-;%define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
+; %define NO_SPLIT_SEND	; disable splitting send buffer to wrap around storage
 			; and adjust TOP to last byte. Only whole "lines" or
 			; full send buffers are transfered.
 
-%define DEBUG
+;%define DEBUG
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
 ; -----------------------------------------------------------------------------
