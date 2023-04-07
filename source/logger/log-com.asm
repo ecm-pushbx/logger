@@ -57,7 +57,7 @@ Initialize:
 	ParseOptions	OptionTable, 0x81		; cs:OptionTable
 							; es:CommandLine
 
-	and		[Flags], byte 01111111b		; not ofPreTest
+	and		[Flags], byte ~ofPreTest
 
 	FindDeviceDriver
 	jnc		DriverFound
@@ -107,7 +107,7 @@ DriverFound:
 	mov		[OrgStat], ax
 
 	; disable driver
-	and		al , 0xfe			; Not sfEnabled bit flag
+	and		al , ~sfEnabled
 	mov		[es:Header(Status)], ax
 
 	; make sure buffer contents have been written.
@@ -300,7 +300,7 @@ Option_Off:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
 	; force off regardless of what command line options are used.
-	and		[OrgStat], byte (-1 - sfEnabled) ; not sfEnabled
+	and		[OrgStat], byte ~sfEnabled
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -323,7 +323,7 @@ Option_Clear:
 	mov		es, [DriverSeg]
 	; reset log buffer control data
 	mov		al, [OrgStat]
-	and		al, (-1 - sfLogFull)	; not sfLogFull
+	and		al, ~sfLogFull
 	mov		[es:Header(Status)], al ; clear sfLogFull bit
 	mov		[OrgStat], al		; update original state
 	xor		ax, ax
@@ -356,7 +356,7 @@ Option_Print:
 	jnz		Option_Done
 	push		es
 	mov		es, [DriverSeg]
-	and		[Flags], byte (-1 - ofColorPrint) ; not ofColorPrint
+	and		[Flags], byte ~ofColorPrint
 	call		PrintLog
 	pop		es
 	jmp		Option_Done
@@ -493,7 +493,7 @@ LogViewer:
 	call		.Up
 	pop		cx
 	loop		.PgUpLoop
-	and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	and		[Viewer.Flags], byte ~vfNoDraw
 	jmp		DrawPage
 
 .Up:
@@ -505,7 +505,7 @@ LogViewer:
 .EndKey:
 	; or		[Viewer.Flags], byte vfNoDraw
 	; call		.Down
-	; and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	; and		[Viewer.Flags], byte ~vfNoDraw
 	; test		[Viewer.Flags], byte vfAtBottom
 	; jz		.EndKey
 	; jmp		DrawPage
@@ -525,7 +525,7 @@ LogViewer:
 	call		.Down
 	pop		cx
 	loop		.PgDnLoop
-	and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	and		[Viewer.Flags], byte ~vfNoDraw
 	jmp		DrawPage
 .Down:
 	test		[Viewer.Flags], byte vfAtBottom
@@ -551,7 +551,7 @@ LogViewer:
 	call		.Right
 	test		[Viewer.Flags], byte vfAtRightmost
 	jz		.CtrlRightLoop
-	and		[Viewer.Flags], byte (-1 - vfNoDraw)
+	and		[Viewer.Flags], byte ~vfNoDraw
 	jmp		DrawPage
 
 .Right:
@@ -563,7 +563,7 @@ LogViewer:
 ; -----------------------------------------------------------------------------
 
 PrevLine:
-	and		[Viewer.Flags], byte (-1 - vfAtBottom)
+	and		[Viewer.Flags], byte ~vfAtBottom
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
 	; previous line ended in either CR, LF or CRLF
@@ -591,7 +591,7 @@ PrevLine:
 	ret
 
 NextLine:
-	and		[Viewer.Flags], byte (-1 - vfAtTop)
+	and		[Viewer.Flags], byte ~vfAtTop
 	mov		ax, [Viewer.Top]
 	mov		dx, [Viewer.Top+2]
 .NotEOL:
@@ -648,7 +648,7 @@ DrawPage:
 ; .StartElsewhere:
 	call		FetchXMS
 	or		[Viewer.Flags], byte vfAtRightmost
-	and		[Viewer.Flags], byte (-1 - vfAtLeftmost) ; not vfAtLeftmost
+	and		[Viewer.Flags], byte ~vfAtLeftmost
 	cmp		[Viewer.LeftOfs], word 0
 	jne		.Rows
 	or		[Viewer.Flags], byte vfAtLeftmost
@@ -691,7 +691,7 @@ DrawPage:
 
 	test		si, si
 	jnz		.AtRightmost
-	and		[Viewer.Flags], byte (-1 - vfAtRightmost)
+	and		[Viewer.Flags], byte ~vfAtRightmost
 .AtRightmost:
 
 	mov		[Viewer.Bottom], ax
@@ -788,7 +788,7 @@ DrawPage:
 NextXMS:
 	push		dx
 	push		ax
-	and		[Viewer.Flags], byte (-1 - vfAtBottom) ; not vfAtBottom
+	and		[Viewer.Flags], byte ~vfAtBottom
 
 	%ifdef NO_SPLIT_BUFFER
 		cmpdd		dx, ax, es:Header(XMS.Top)
@@ -831,7 +831,7 @@ PrevXMS:
 	stc
 	ret
 .CanDec:
-	and		[Viewer.Flags], byte (-1 - vfAtTop) ; not vfAtTop
+	and		[Viewer.Flags], byte ~vfAtTop
 	mov		bx, dx
 	or		bx, ax
 	test		bx, bx

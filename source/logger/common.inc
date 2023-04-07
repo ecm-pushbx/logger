@@ -56,10 +56,10 @@
 ; -----------------------------------------------------------------------------
 
 %imacro CopyrightText 0
-	db	'Copyright (c)',0x20
+	db	'Copyright (c)', 0x20
 	db 	%substr(__DATE__,1,4), ',', 0x20
-	db 	'Jerome Shidel',0x0d,0x0a
-	db	'BSD 3-Clause License',0x0d,0x0a,0x0a
+	db 	'Jerome Shidel', 0x0d, 0x0a
+	db	'BSD 3-Clause License', 0x0d, 0x0a, 0x0a
 %endmacro
 
 %imacro DeviceDriverID 0
@@ -72,7 +72,7 @@
 %idefine sfEnabled 	00000001b	; bit 0 = logging enabled
 %idefine sfModeChange	00000010b	; bit 1 = mode changed, re-config driver
 %idefine sfDirectMode	00000100b	; bit 2 = advanced capture mode
-%idefine sfEGAorBetter	00001000b	; bit 3 =
+%idefine sfSupport	00001000b	; bit 3 = card supports advanced mode
 %idefine sfInColor	00010000b	; bit 4 = include color attribs in log
 %idefine sfLogJam	00100000b	; bit 5 = stop when full
 %idefine sfLogFull	01000000b	; bit 6 = log full
@@ -89,7 +89,7 @@
 ; interface status and option flags (high byte)
 %idefine ofPassThru	00000001b	; bit 8 = also send any STDIN to STDOUT
 
-; interface viewer navigation control flags
+; interface viewer navigation control flags (low byte)
 %idefine vfAtTop	00000001b	; bit 0 = can not scroll up
 %idefine vfAtBottom     00000010b	; bit 1 = can not scroll down
 %idefine vfAtLeftmost   00000100b	; bit 2 = can not scroll left

@@ -96,7 +96,7 @@ function wct () {
 
 function build_main () {
 
-	echo "WARNING: NASM 2.15.05, or later is absolutely required for successful compilation."
+	echo "WARNING: NASM 2.15.05, or later is recommended for compilation."
 
 	local i
 	build "log-com.asm" 'logger.com'
