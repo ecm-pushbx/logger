@@ -24,7 +24,8 @@ might not. We will see.
 * Switch between COLOR and MONOCHROME logging.
 * Hook an interrupt (somewhere) to provide a direct interface to driver. This
 would permit other programs (including the log interface program) to easily
-test if installed along with reading and writing messages in the log.
+test if it is installed. Also it would provide status information and a simple
+way to read and write messages in the log.
 
 Just under consideration. These would also increase the size of the device
 driver. But, they would probably not provide much benefit to actual usage.

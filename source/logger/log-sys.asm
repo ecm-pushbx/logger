@@ -177,12 +177,7 @@ DevInt10:
 	; mode was changed, adjust settings
 	push		es
 	push		ax
-
-	; I always seem to forget that ~ is bitwise negation in NASM, and
-	; resort to using hard coded values or (-1 - ?). I really need to try
-	; to use the ~ more often so I remember it. :-)
-
-	; clear ModeChange and DirectMode bits
+	; clear ModeChange and DirectMethod bits
 	and		[Header(Status)], byte ~(sfModeChange + sfDirectMode)
 
 	test		[Header(Status)], byte sfSupport
@@ -335,7 +330,7 @@ SendToLog:
 	or		[Header(Status)], byte sfLogFull
 	test 		[Header(Status)], byte sfLogJam
 	jz		.NoLogJam
-	and		[Header(Status)], byte ~sfEnabled
+	and		[Header(Status)], byte ~sfEnabled	; not sfEnabled
 	jmp		.SendDone
 
 .NoLogJam:
@@ -961,7 +956,7 @@ Option_COLOR:
 Option_MONO:
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
-	and		[Header(Status)], byte ~sfInColor
+	and		[Header(Status)], byte ~sfInColor ; not sfInColor
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
