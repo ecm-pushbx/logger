@@ -113,9 +113,14 @@ DriverFound:
 	; make sure buffer contents have been written.
 	call		far [es:Header(Flush)]
 
-WARNING	There should be a test for I/O redirection added. \
-	That way, only redirected text is captured and not keystrokes. \
-	Maybe later.
+
+	; test if StdIn is redirected
+	mov		ax, 0x4400
+	xor		bx, bx		; file handle 0 = StdIn
+	int		0x21
+	jc		.NoStdInput	; error
+	test		dl, 0x80
+	jnz		.NoStdInput	; StdIn is not redirected
 
 	; send any standard input text to Log
 	StdIn
@@ -221,6 +226,7 @@ OptionTable:
 	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------
+
 %ifdef DEBUG
 Option_Debug:
 	test		[Flags], byte ofPreTest
@@ -232,6 +238,7 @@ Option_Debug:
 	pop		es
 	jmp		Option_Done
 %endif
+
 ; -----------------------------------------------------------------------------
 
 Option_Help:
@@ -270,7 +277,7 @@ Option_Off:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
 	; force off regardless of what command line options are used.
-	and		[OrgStat], byte 11111110b	; not sfEnabled
+	and		[OrgStat], byte (-1 - sfEnabled) ; not sfEnabled
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -293,7 +300,7 @@ Option_Clear:
 	mov		es, [DriverSeg]
 	; reset log buffer control data
 	mov		al, [OrgStat]
-	and		al, 10111111b		; not sfLogFull
+	and		al, (-1 - sfLogFull)	; not sfLogFull
 	mov		[es:Header(Status)], al ; clear sfLogFull bit
 	mov		[OrgStat], al		; update original state
 	xor		ax, ax
@@ -326,7 +333,7 @@ Option_Print:
 	jnz		Option_Done
 	push		es
 	mov		es, [DriverSeg]
-	and		[Flags], byte 11111011b ; not ofColorPrint
+	and		[Flags], byte (-1 - ofColorPrint) ; not ofColorPrint
 	call		PrintLog
 	pop		es
 	jmp		Option_Done
@@ -391,7 +398,7 @@ LogViewer:
 	call		.GoHome
 
 .WaitKeyPress:
-	hlt
+	IdleCPU
 	mov		ah, 0x01
 	int		0x16
 	jz		.WaitKeyPress
@@ -424,21 +431,21 @@ LogViewer:
 
 .KeyTable:
 
-	dw		.Done, 0x001b 		; Escape
-	dw		.Done, 0x000d 		; Enter/Return
-	dw		.Done, 0x000a 		; Enter/Return
-	dw		.Done, 0x0003 		; Ctrl+C
-	dw		.Up, 0x4800		; Up
-	dw		.PgUp, 0x4900		; PgUp
-	dw		.HomeKey, 0x4700	; Home
-	dw		.Down, 0x5000		; Down
-	dw		.PgDn, 0x5100		; PgDn
-	dw		.EndKey, 0x4f00		; End
-	dw		.Left, 0x4b00		; Left
-	dw		.CtrlLeft, 0x7300	; Ctrl+Left
-	dw		.Right, 0x4d00		; Right
-	dw		.CtrlRight, 0x7400	; Ctrl+Left
-	dw 		0			; end of list
+	dw		.Done, 		0x001b 		; Escape
+	dw		.Done, 		0x000d 		; Enter/Return
+	dw		.Done, 		0x000a 		; Enter/Return
+	dw		.Done, 		0x0003 		; Ctrl+C
+	dw		.Up, 		0x4800		; Up
+	dw		.PgUp,		0x4900		; PgUp
+	dw		.HomeKey, 	0x4700		; Home
+	dw		.Down, 		0x5000		; Down
+	dw		.PgDn, 		0x5100		; PgDn
+	dw		.EndKey, 	0x4f00		; End
+	dw		.Left, 		0x4b00		; Left
+	dw		.CtrlLeft, 	0x7300		; Ctrl+Left
+	dw		.Right, 	0x4d00		; Right
+	dw		.CtrlRight, 	0x7400		; Ctrl+Left
+	dw 		0				; end of list
 
 .HomeKey:
 	test		[Viewer.Flags], byte vfAtTop

@@ -1,7 +1,6 @@
 To-Do for initial release:
 
 * Driver, the more advanced logging method
-* Interface, test for I/O redirection instead of just sending all STDIN to log.
 
 Maybe stuff that could be in later releases that would not effect the device
 driver's memory footprint.

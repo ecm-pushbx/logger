@@ -30,10 +30,6 @@
 
 ; NASM 2.15.05, or later
 
-; Display messages for things that have not been implemented. They most likely
-; should be done for various reasons (like compatibility).
-; %define WARNINGS
-
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;%define DEBUG
 
@@ -48,14 +44,6 @@
 ; variables requires a couple more bytes of code than splitting the send buffer.
 ;
 ; %define NO_SPLIT_SEND
-
-; -----------------------------------------------------------------------------
-
-%macro WARNING 1-*
-	%ifdef WARNINGS
-		%warning %{1:-1}
-	%endif
-%endmacro
 
 ; -----------------------------------------------------------------------------
 
@@ -181,6 +169,10 @@ endstruc
 
 ; -----------------------------------------------------------------------------
 
+%idefine IdleCPU	hlt
+
+; -----------------------------------------------------------------------------
+
 %imacro PUSHAG 0
 	; 8086 is similar to, but not equivalent to PUSHA!
 	; it excludes SP and uses a different order.
@@ -216,6 +208,7 @@ endstruc
 %endmacro
 
 ; -----------------------------------------------------------------------------
+
 %imacro CMPDD	3
 	cmp 	%1, [%3+2]
 	jne	%%Done
@@ -230,9 +223,6 @@ endstruc
 ; better way to find out if the logging driver is loaded and it's location in
 ; memory. But after trying a couple different things, I just settled on using
 ; this method.
-
-WARNING	A test for machines with less 640k or less memory really needs added \
-	to the scan for the logger driver.
 
 PROC_FindDeviceDriver:
 	mov		bx, 0x0100
