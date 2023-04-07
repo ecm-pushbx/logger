@@ -187,18 +187,13 @@ ExitNoError:
 ; -----------------------------------------------------------------------------
 
 OptionTable:
+	; full name options
 	dw		Option_Help
 	db 		'HELP', 0
-	dw		Option_Help
-	db 		'/HELP', 0
-	dw		Option_Help
-	db 		'/H', 0
-	dw		Option_Help
-	db 		'/?', 0
 	dw		Option_Version
 	db 		'VERSION', 0
 	dw		Option_Status
-	db	 	'STATUS', 0
+	db	 	'INFORMATION', 0
 	dw		Option_Off
 	db		'OFF', 0
 	dw		Option_On
@@ -211,18 +206,46 @@ OptionTable:
 	db	 	'ANSI', 0
 	dw		Option_Msg
 	db	 	'MESSAGE', 0
-	dw		Option_Msg
-	db	 	'MSG', 0
 	dw		Option_View
 	db	 	'VIEW', 0
 	dw 		Option_Snapshot
 	db		'SNAPSHOT', 0
 	dw 		Option_PassThru
-	db		'PASS', 0
+	db		'THRU', 0
+	; abbreviated options
+	dw		Option_Help
+	db 		'H', 0
+	dw		Option_Version
+	db 		'V', 0
+	dw		Option_Status
+	db	 	'I', 0
+	dw		Option_Clear
+	db		'C', 0
+	dw		Option_Print
+	db		'P', 0
+	dw		Option_Ansi
+	db	 	'A', 0
+	dw		Option_Msg
+	db	 	'M', 0
+	dw		Option_View
+	db	 	'V', 0
+	dw 		Option_Snapshot
+	db		'S', 0
+	dw 		Option_PassThru
+	db		'T', 0
 %ifdef DEBUG
 	dw		Option_Debug
 	db		'DEBUG',0
+	dw		Option_Debug
+	db		'D',0
 %endif
+	; help alternative names
+	dw		Option_Help
+	db 		'/HELP', 0
+	dw		Option_Help
+	db 		'/H', 0
+	dw		Option_Help
+	db 		'/?', 0
 	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------

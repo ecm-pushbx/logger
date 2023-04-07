@@ -68,9 +68,14 @@ allocate buffer space.
 EXAMPLES:
 
 DEVICEHIGH=C:\DOS\LOGGER.SYS
-DEVICEHIGH=C:\DOS\LOGGER.SYS C,2048,X 256,X M,128,X; C,64,U M,16,U; L,16
+DEVICEHIGH=C:\DOS\LOGGER.SYS C,2048,X; 256,X; 128,M,X; 64,C,U; M,16,U; L,16
 DEVICEHIGH=C:\DOS\LOGGER.SYS JAM COLOR 32 UMB MONO 16 UMB
-DEVICE=C:\DOS\LOGGER.SYS 8 LOW
+DEVICEHIGH=C:\DOS\LOGGER.SYS color 32 UMB, mono 16 UMB, 8 LOW; JAM
+DEVICE=C:\DOS\LOGGER.SYS m,8 low
+
+(Although the comma and semi-colon function as parameter separators, they can
+be considered decorations that can help with reading and editin a long series
+of command line options.)
 
 -------------------------------------------------------------------------------
 
@@ -91,11 +96,15 @@ Options that will return logging to its previous state:
 
 	VERSION		Display version information.
 	HELP		Display this help text.
-	STATUS		Display some status information about the driver.
+	INFORMATION	Display some status information about the driver.
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
-	PASS		Pass any STDIN text back out through STDOUT.
+	THRU		Pass any STDIN text back out through STDOUT.
+
+Options must be separated by one or more SPACE, COMMA or SEMI-COLON characters.
+Most options only require their first letter, for example C is short CLEAR. The
+exceptions are ON and OFF which must be specified in their entirety.
 
 LOGGER always disables logging when executed. Based on the options provided on
 the command line, logging may or may not be enabled when the program finishes

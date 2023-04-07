@@ -9,10 +9,10 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 
 	VERSION		Display version information.
 	HELP		Display this help text.
-	STATUS		Display some status information about the driver.
+	INFORMATION	Display some status information about the driver.
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
-	PASS		Pass any STDIN text back out through STDOUT.
+	THRU		Pass any STDIN text back out through STDOUT.
 
 see LOGGER.TXT for more information.

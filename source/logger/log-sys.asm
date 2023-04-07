@@ -818,7 +818,8 @@ UMB_Thru_DOS:
 	jc		.LinkFailed
 .SetStrategy:
 	mov		ax, 0x5801
-	mov		bx, 0x0041	; best fit, high memory
+	mov		bx, 0x0041	; best fit, high memory Only!
+					; however, it may still allocate low
 	int		0x21
 	jc		.RestoreSettings
 
@@ -909,7 +910,7 @@ DOSAlloc:
 .Allocated:
 	cmp		[LogInUMB], byte 0
 	je		.Success
-	; test if upper memory block
+	; when allocating Only a UMB, test if we got a upper memory block
 	cmp		ax, 0xa000
 	jae		.Success
 	; not in upper memory, then free block
