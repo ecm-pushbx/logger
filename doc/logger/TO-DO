@@ -22,6 +22,9 @@ might not. We will see.
 * Driver, HOT-KEYs to enable/disable logging
 * Interface, Change HOT-KEY assignments
 * Switch between COLOR and MONOCHROME logging.
+* Hook an interrupt (somewhere) to provide a direct interface to driver. This
+would permit other programs (including the log interface program) to easily
+test if installed along with reading and writing messages in the log.
 
 Just under consideration. These would also increase the size of the device
 driver. But, they would probably not provide much benefit to actual usage.
@@ -30,4 +33,3 @@ driver. But, they would probably not provide much benefit to actual usage.
 * Remove direct reading of log in Interface program by adding a "read from log"
 * Remove direct clearing of log by Interface program with a "clear the log"
 * Add DOS support for reading and writing to LOG character device.
-
