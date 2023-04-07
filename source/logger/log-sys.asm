@@ -83,10 +83,7 @@ istruc TDriverHeader
 	at .Format,		dw 1		; Record Format Identifier
 %endif
 
-	at .Status,		dw sfModeChange	; Device driver Status
-						; set ModeChage Flag so driver
-						; so when enabled, video
-						; settings will get initialized
+	at .Status,		dw 0		; Device driver Status
 
 	at .Flush,		dd FlushBuffer	; Function to Flush the current
 						; buffer to Log storage.
@@ -170,69 +167,36 @@ DevInt10:
 	test		[Header(Status)], byte sfEnabled
 	jz		.CheckModeChange
 
+	test		[Header(Status)], byte sfSupport
+	jz		.CaptureTTL
+
 	; was mode previously changed?
 	test		[Header(Status)], byte sfModeChange
 	jz		.NoModeResetFlag
 
-	; mode was changed, adjust settings
-	push		es
-	push		ax
-	; clear ModeChange and DirectMethod bits
-	and		[Header(Status)], byte ~(sfModeChange + sfDirectMode)
-
-	test		[Header(Status)], byte sfSupport
-	jz		.SetTTLMethod
-	; in a supported text mode?
-	mov		ax, 0x0040
-	mov		es, ax
-	mov		al, [es:0x0049]		; current video mode
-	and		al, 0x7f
-	cmp		al, 0x07		; is 80x25 mono?
-	je		.SetDirectMethod
-	cmp		al, 0x03		; not 80x? or 40x?
-	ja		.SetTTLMethod
-.SetDirectMethod:
-	mov		[LastCaptured], word -1 ; set last captured line
-	; or		[Header(Status)], sfDirectMode	; set direct method flag
-	jmp		.SetMethodDone
-.SetTTLMethod:
-	mov		[Header(XFR.Count)], word 0 ; don't worry about high word
-	mov		[Header(XFR.SrcAddr)], word Header(XFR.Buffer)
-	mov		[Header(XFR.SrcAddr)+2], cs
-.SetMethodDone:
-	pop		ax
-	pop		es
+	call		ConfigCapture
 
 .NoModeResetFlag:
 	; test capture method
 	test		[Header(Status)], byte sfDirectMode ; direct method flag
-	jnz		.CaptureDirect
+	jz		.CaptureTTL
+
+	call		DirectCapture
+	jmp		.CheckModeChange
+
+.CaptureTTL:
 	; if not Direct Capture method, simple BIOS TTL capture
 	cmp		ah, 0x0e
-	jne		.Done
+	jne		.CheckModeChange
 	; bh = page, for now don't care
 	call		AppendBuffer
 	jmp		.Done
-.CaptureDirect:
-	; Direct Capture Method
-	; call		Capture
 
-	cmp		ah, 0x07	; Scroll Down
-	je		.AdjustScroll
-	cmp		ah, 0x06	; Scroll Up
-	je		.AdjustScroll
 .CheckModeChange:
 	test		ah, ah
 	jnz		.Done
 .AdjustModeChange:
-	call		SendToLog
 	or		[Header(Status)], byte sfModeChange ; set flag
-	jmp		.Done
-.AdjustScroll:
-	test		cx, cx
-	jnz		.AdjustNotFull
-
-.AdjustNotFull:
 .Done:
 	pop		ds
 	popf
@@ -496,8 +460,40 @@ SendToLog:
 	ret
 
 ; -----------------------------------------------------------------------------
-; Not needed if direct video mode not supported.
+; If direct video mode not supported, this won't be needed after initialization
 ; -----------------------------------------------------------------------------
+
+ConfigCapture:
+
+	; mode was changed, adjust settings
+	push		es
+	push		ax
+	; clear ModeChange and DirectMethod bits
+	and		[Header(Status)], byte ~(sfModeChange + sfDirectMode)
+
+	; mov		[Header(XFR.Count)], word 0 ; don't worry about high word
+	mov		[Header(XFR.SrcAddr)], word Header(XFR.Buffer)
+	mov		[Header(XFR.SrcAddr)+2], cs
+
+	; in a supported text mode?
+	mov		ax, 0x0040
+	mov		es, ax
+	mov		al, [es:0x0049]		; current video mode
+	and		al, 0x7f
+	cmp		al, 0x07		; is 80x25 mono?
+	je		.SetDirectMethod
+	cmp		al, 0x03		; not 80x? or 40x?
+	ja		.SetMethodDone
+.SetDirectMethod:
+	mov		[LastCaptured], word -1 ; set last captured line
+	; or		[Header(Status)], sfDirectMode	; set direct method flag
+.SetMethodDone:
+	pop		ax
+	pop		es
+	ret
+
+DirectCapture:
+	ret
 
 ; -----------------------------------------------------------------------------
 ; Not needed if using XMS Memory. Only required for UMB and LOW memory LOG
@@ -672,6 +668,25 @@ Initialize:
 	test		[Header(Status)], byte sfEnabled
 	jz		.Failed
 
+	; perform Initial Capture Configuration
+	call		ConfigCapture
+
+	; if "XMS.Driver" segment is not our segment, we can dump the LOW/UMB
+	; memory LOG handler and reduce the memory footprint by ~112 bytes.
+	; this means DirectCapture will automatically be included regardless
+	; wether or not it can be used.
+	mov		dx, cs
+	cmp		dx, [Header(XMS.Driver)+2]
+	je		.KeepMemorySection
+	mov		[es:di+tREQUEST.Address], word Memory_Handler
+
+	; if Direct Capture is not supported, we don't need to keep it
+	test		[Header(Status)], byte sfSupport
+	jnz		.KeepMemorySection
+	mov		[es:di+tREQUEST.Address], word ConfigCapture
+
+.KeepMemorySection:
+
 	; Save BIOS Int 10
 	push		es
 	mov		ax, 0x3510
@@ -685,14 +700,7 @@ Initialize:
 	mov		ax, 0x2510
 	int		0x21
 
-.Success:
-	; if "XMS.Driver" segment is not our segment, we can dump the LOW/UMB
-	; memory LOG handler and reduce the memory footprint by ~112 bytes.
-	mov		dx, cs
-	cmp		dx, [Header(XMS.Driver)+2]
-	je		.KeepMemoryHandler
-	mov		[es:di+tREQUEST.Address], word Memory_Handler
-.KeepMemoryHandler:
+; .Success:
 
 	PrintStatus	cs
 	PrintMessage	Activated
