@@ -160,7 +160,7 @@ endstruc
 ; -----------------------------------------------------------------------------
 
 struc TTransfer
-	.Count:	resd 1			; byte count { must be even }
+	.Count:		resd 1		; byte count { must be even }
 	.SrcHandle:	resw 1		; 0 = conventional memory, or Handle
 	.SrcAddr:	resd 1		; pointer to source buffer
 	.DstHandle:	resw 1		; XMS handle
@@ -469,6 +469,14 @@ PROC_WordAsInt:
 	%ifnidni %1, ax
 		pop	ax
 	%endif
+%endmacro
+
+%imacro ByteAsInt 1
+	push		ax
+	mov		al, %1
+	xor		ah, ah
+	WordAsInt 	ax
+	pop		ax
 %endmacro
 
 ; -----------------------------------------------------------------------------
@@ -980,28 +988,28 @@ PROC_VideoSettings:
 	cld
 	rep		movsb
 	; check that we are in a compatible text mode to save screen
-	mov		bx, 0xb000 ; mono segment
-	mov		al, [0x0049]
+	mov		bx, 0xb000 	; mono segment
+	mov		al, [0x0049]	; video mode
 	cmp		al, 0x07
 	je		.ModeOk
-	mov		bx, 0xb800 ; color segment
+	mov		bx, 0xb800 	; color segment
 	cmp		al, 0x03
-	ja		.ModeBad
+	jbe		.ModeOk
+	; possible support other modes like 132x50
+	jmp		.ModeBad
 .ModeOk:
-	mov		ax, [0x004c]
+	mov		ax, [0x004c]	; regen size
 	cmp		ax, 0x4000
 	ja		.ModeBad
 	mov		[es:di], byte 1	; TVideoData.Direct
 	inc		di
 	push		ax
-	shr		ax, 1
 	xor		dx, dx
-	mov		ax, [0x004c]
-	mov		cx, [0x004a]
-	div		cx
 	shr		ax, 1
+	mov		cx, [0x004a] 	; columns
+	div		cx	     	; ax=rows
 	xchg		cx, ax
-	pop		dx
+	pop		dx		; was ax
 	clc
 	jmp		.Done
 .ModeBad:

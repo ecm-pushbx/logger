@@ -85,7 +85,7 @@ istruc TDriverHeader
 
 	at .Status,		dw 0		; Device driver Status
 
-	at .Flush,		dd FlushBuffer	; Function to Flush the current
+	at .Flush,		dd FlushFarCall	; Function to Flush the current
 						; buffer to Log storage.
 
 
@@ -119,7 +119,6 @@ iend
 ; -----------------------------------------------------------------------------
 
 BIOSInt10:		dd -1			; Original BIOS Int 10
-LastCaptured:		dw -1			; Last Screen row sent to log
 
 ; -----------------------------------------------------------------------------
 ; The standard DOS function calls to interact with the driver
@@ -174,6 +173,7 @@ DevInt10:
 	test		[Header(Status)], byte sfModeChange
 	jz		.NoModeResetFlag
 
+	; only called if Mode was changed and DirectMode is supported
 	call		ConfigCapture
 
 .NoModeResetFlag:
@@ -195,7 +195,7 @@ DevInt10:
 .CheckModeChange:
 	test		ah, ah
 	jnz		.Done
-.AdjustModeChange:
+	call		FlushBuffer
 	or		[Header(Status)], byte sfModeChange ; set flag
 .Done:
 	pop		ds
@@ -226,21 +226,33 @@ AppendBuffer:
 	ret
 
 ; -----------------------------------------------------------------------------
-; FAR function for external Log interface program to call that insures all data
-; stored in the buffer has been written to the log.
+; FAR function for external Log interface program.
 ; -----------------------------------------------------------------------------
 
-FlushBuffer:
+FlushFarCall:
 	; far call to send buffer contents to Log storage. It is not effected
 	; by driver enabled state.
 	pushf
 	push		ds
 	push		cs
 	pop		ds
-	call		SendToLog
+	call		FlushBuffer
 	pop		ds
 	popf
 	retf
+
+; -----------------------------------------------------------------------------
+; Buffer Flush routine that insures all data stored in the buffer or not yet
+; processed in DirectMode has been written to the log.
+; -----------------------------------------------------------------------------
+
+FlushBuffer:
+	test		[Header(Status)], byte sfDirectMode ; direct method flag
+	jz		.SendBuffer
+	call		DirectFlush
+.SendBuffer:
+	call		SendToLog
+	ret
 
 ; -----------------------------------------------------------------------------
 ; Transfer buffer to Log storage.
@@ -468,6 +480,10 @@ ConfigCapture:
 	; mode was changed, adjust settings
 	push		es
 	push		ax
+	push		bx
+	push		cx
+	push		dx
+
 	; clear ModeChange and DirectMethod bits
 	and		[Header(Status)], byte ~(sfModeChange + sfDirectMode)
 
@@ -475,25 +491,64 @@ ConfigCapture:
 	mov		[Header(XFR.SrcAddr)], word Header(XFR.Buffer)
 	mov		[Header(XFR.SrcAddr)+2], cs
 
-	; in a supported text mode?
+	; is it a supported text mode?
 	mov		ax, 0x0040
 	mov		es, ax
 	mov		al, [es:0x0049]		; current video mode
 	and		al, 0x7f
+	mov		bx, 0xb000 		; mono segment
 	cmp		al, 0x07		; is 80x25 mono?
-	je		.SetDirectMethod
+	je		.MaybeDirectMethod
+	mov		bx, 0xb800 		; mono segment
 	cmp		al, 0x03		; not 80x? or 40x?
+	jbe		.MaybeDirectMethod
+	; possible support other modes like 132x50
+	jmp		.SetMethodDone
+.MaybeDirectMethod:
+	mov		ax, [es:0x004c]		; regen size
+	cmp		ax, 0x4000		; Sanity check, over 16k fail
 	ja		.SetMethodDone
+	xor		dx, dx
+	shr		ax, 1
+	mov		cx, [es:0x004a] 	; columns
+	test		cx, cx
+	jz		.SetMethodDone		; divide by zero, fail
+	div		cx	     		; cx=columns,ax=rows
+	cmp		cx, 132
+	ja		.SetMethodDone		; over 132 columns, fail
+	cmp		ax, 50
+	ja		.SetMethodDone		; over 50 rows, fail
 .SetDirectMethod:
-	mov		[LastCaptured], word -1 ; set last captured line
+	; mode supported
+	mov		[DirectData.VSeg], bx
+	mov		ch, al
+	mov		[DirectData.MaxXY], cx
+
+
+	; mov		[LastCaptured], word -1 ; set last captured line
 	; or		[Header(Status)], sfDirectMode	; set direct method flag
 .SetMethodDone:
+	pop		dx
+	pop		cx
+	pop		bx
 	pop		ax
 	pop		es
 	ret
 
 DirectCapture:
 	ret
+
+DirectFlush:
+	ret
+
+DirectData:
+	.VPtr:
+	.VOfs:		dw 0
+	.VSeg:		dw 0
+	.MaxXY:
+	.MaxX:		db 0
+	.MaxY:		db 0
+
 
 ; -----------------------------------------------------------------------------
 ; Not needed if using XMS Memory. Only required for UMB and LOW memory LOG
