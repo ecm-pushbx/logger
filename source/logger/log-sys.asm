@@ -1287,7 +1287,7 @@ LoadSeg:
 
 Banner:
 	db	0x0d,0x0a
-	db	'System Boot Message Logger, v0.1',0x0d,0x0a
+	db	'System Boot Message Logger, ',VERSION,0x0d,0x0a
 	CopyrightText
 	db	'$'
 

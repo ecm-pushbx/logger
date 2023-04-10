@@ -1,6 +1,6 @@
 Begin3
 Title:          Logger
-Version:        prerelease
+Version:        alpha
 Entered-date:   n/a
 Description:    General boot message logging system
 Summary:	Device driver and interface program for system boot message logging.

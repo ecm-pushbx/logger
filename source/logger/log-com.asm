@@ -1362,7 +1362,7 @@ DriverID:
 	DeviceDriverID
 
 Banner:
-	db	'System Boot Message Log Utility, v0.1',0x0d,0x0a
+	db	'System Boot Message Log Interface Utility, ',VERSION,0x0d,0x0a
 	CopyrightText
 	db	'$'
 NoDriver:

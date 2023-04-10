@@ -90,7 +90,7 @@ Options that leave logging disabled unless overridden:
 
 	CLEAR		Empty the log.
 	PRINT		Output the log text to STDOUT.
-	ANSI		Like PRINT, but includes ANSI color sequences.
+	ANSI		Just like PRINT, but includes ANSI color sequences.
 
 Options that will return logging to its previous state:
 
@@ -100,7 +100,7 @@ Options that will return logging to its previous state:
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
-	THRU		Pass any STDIN text back out through STDOUT.
+	THRU		Log and pass along any redirected standard input text.
 
 Options must be separated by one or more SPACE, COMMA or SEMI-COLON characters.
 Most options only require their first letter, for example C is short CLEAR. The

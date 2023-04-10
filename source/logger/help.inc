@@ -3,9 +3,9 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	ON		Force logging on when finished.
 	OFF		Leave logging disabled when finished.
 
-	CLEAR		Empty the log.
-	PRINT		Output the log text to STDOUT.
-	ANSI		Like PRINT, but includes ANSI color sequences.
+	CLEAR		Empty the log. (leaves logging off)
+	PRINT		Output the log text to STDOUT. (leaves logging off)
+	ANSI		Just like PRINT, but includes ANSI color sequences.
 
 	VERSION		Display version information.
 	HELP		Display this help text.
@@ -13,6 +13,7 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
-	THRU		Pass any STDIN text back out through STDOUT.
+	THRU		Log and pass along any redirected standard input text.
 
+most options can be abbreviated by using only their first letter (P for PRINT).
 see LOGGER.TXT for more information.
