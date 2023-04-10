@@ -247,12 +247,12 @@ FlushFarCall:
 ; -----------------------------------------------------------------------------
 
 FlushBuffer:
-	test		[Header(Status)], byte sfDirectMode ; direct method flag
-	jz		.SendBuffer
-	call		DirectFlush
-.SendBuffer:
-	call		SendToLog
-	ret
+;	test		[Header(Status)], byte sfDirectMode ; direct method flag
+;	jz		.SendBuffer
+;	call		DirectFlush
+;.SendBuffer:
+;	call		SendToLog
+;	ret
 
 ; -----------------------------------------------------------------------------
 ; Transfer buffer to Log storage.
@@ -514,6 +514,8 @@ ConfigCapture:
 	test		cx, cx
 	jz		.SetMethodDone		; divide by zero, fail
 	div		cx	     		; cx=columns,ax=rows
+	cmp		ax, 13
+	jb		.SetMethodDone		; rows < 13, fail
 	cmp		cx, 132
 	ja		.SetMethodDone		; over 132 columns, fail
 	cmp		ax, 50
@@ -523,10 +525,8 @@ ConfigCapture:
 	mov		[DirectData.VSeg], bx
 	mov		ch, al
 	mov		[DirectData.MaxXY], cx
-
-
-	; mov		[LastCaptured], word -1 ; set last captured line
-	; or		[Header(Status)], sfDirectMode	; set direct method flag
+;	mov		[DirectData.Row], word -1 ; set last captured line
+	or		[Header(Status)], byte sfDirectMode + sfSupport
 .SetMethodDone:
 	pop		dx
 	pop		cx
@@ -535,20 +535,188 @@ ConfigCapture:
 	pop		es
 	ret
 
+; -----------------------------------------------------------------------------
+
 DirectCapture:
+	push		es
+	push		ax
+	push		cx
+	push		bx
+	mov		bx, 0x0040
+	mov		es, bx
+	pop		bx
+	test 		ah, ah
+	jz		.ModeChange
+	cmp		ax, 0x0e0a		; write TTL LF
+	jne		.NotLineFeedTTL
+	test		bh, bh
+	jnz		.Done			; Not LF on page 0
+	mov		ax, [es:0x0050]		; page 0 cursor position
+	inc		ah
+	cmp		ah, [DirectData.MaxY]
+	jb		.Done			; will it scroll up a line
+	mov		al, 1
+	jmp		.ScrollUp
+.NotLineFeedTTL:
+	cmp		[es:0x0062], byte 0 	; current video page
+	jne		.Done			; if not on page 0, we are done
+	cmp		ax, 0x0700		; scroll down all
+	je		.ScreenClear
+	cmp		ah, 0x06		; scroll up
+	jne		.Done
+.ScrollUp:
+	test		al ,al
+	jz		.ScreenClear		; scroll up all lines
+	; scroll up AL count
+	xor		ch, ch
+	mov		cl, al
+	xor		ax, ax
+.Sending:
+	call		DirectSendRow
+	inc		ax
+	loop		.Sending
+	jmp		.Done
+.ScreenClear:
+	; check if window or full screen clear
+	test		cx, cx
+	jnz		.Done
+	mov		cx, [DirectData.MaxXY]
+	dec		cl
+	dec		ch
+	cmp		dl, cl
+	jb		.Done
+	cmp		dh, ch
+	jb		.Done
+	; is full screen clear
+.ModeChange:
+	call		DirectSendFull
+.Done:
+	pop		cx
+	pop		ax
+	pop		es
 	ret
 
-DirectFlush:
+; -----------------------------------------------------------------------------
+
+DirectSendRow:
+	; ax=row (0+)
+	push		ax
+	push		bx
+	mov		bl, [DirectData.MaxY]	; (1+)
+	; xor		bh, bh
+	; cmp		ax, bx
+	cmp		al, bl	; rows count over 50 forbidden, so just check
+				; lower byte.
+	jae		.Skip	; -1 is 0x(ff)ff and ABOVE total screen rows
+	; Row is 0 through (Rows - 1), we can send it
+	push		cx
+	push		dx
+	push		si
+	push		es
+
+	mov		dx, [DirectData.VSeg]
+	mov		es, dx
+
+	; calculate offsets to start and end of line
+	xor		ch, ch
+	mov		cl, [DirectData.MaxX]	; cx=words per line (1+)
+	mul		cx			; ax=words to start line offset
+	mov		si, ax
+	add		si, ax			; si=bytes to start line offset
+	mov		dx, si			; dx=start line offset
+	add		si, cx
+	add 		si, cx
+	dec		si
+	dec		si			; si=offset to end of line
+	mov		bx, 0x0720		; blank space
+	std
+	test		[Header(Status)], byte sfInColor
+	jz		.MonoMode
+.ColorMode:
+	es lodsw
+	cmp		ax, bx
+	jne		.ColorCounted
+	loop		.ColorMode
+.ColorCounted:
+	cld
+	test		cx, cx
+	jz		.SendCRLF
+	mov		si, dx
+	%warning 	Need to send entire color line to log at once
+.ColorSend:
+	es lodsw
+	mov		bl, ah
+	call		AppendBuffer
+	loop		.ColorSend
+	jmp		.SendCRLF
+
+.MonoMode:
+	es lodsw
+	cmp		al, bl
+	jne		.MonoCounted
+	loop		.MonoMode
+.MonoCounted:
+	cld
+	test		cx, cx
+	jz		.SendCRLF
+	mov		si, dx
+.MonoSend:
+	es		lodsw
+	call		AppendBuffer
+	loop		.MonoSend
+
+.SendCRLF:
+	mov		ax, 0x070d
+	call		AppendBuffer
+	mov		al, 0x0a
+	call		AppendBuffer
+	test		[Header(Status)], byte sfInColor
+	jz		.Sent
+	call		SendToLog
+
+.Sent:
+	pop		es
+	pop		si
+	pop		dx
+	pop		cx
+
+.Skip:
+	pop		bx
+	pop		ax
 	ret
+
+; -----------------------------------------------------------------------------
+
+DirectSendFull:
+	ret
+
+; -----------------------------------------------------------------------------
+
+;DirectFlush:
+;	call		SendToLog
+;	push		es
+;	push		ax
+;	push		cx
+;	mov		ax, 0x0040
+;	mov		es, ax
+;	mov		ax, [es:0x0050]	; page 0 cursor position
+;
+;.Done:
+;	pop		cx
+;	pop		ax
+;	pop		es
+;	ret
+
+; -----------------------------------------------------------------------------
 
 DirectData:
-	.VPtr:
-	.VOfs:		dw 0
+;	.VPtr:
+;	.VOfs:		dw 0
 	.VSeg:		dw 0
 	.MaxXY:
 	.MaxX:		db 0
 	.MaxY:		db 0
-
+;	.Row:		dw 0
 
 ; -----------------------------------------------------------------------------
 ; Not needed if using XMS Memory. Only required for UMB and LOW memory LOG
@@ -960,14 +1128,22 @@ DOSAlloc:
 	mov		ax, [Header(XMS.Size)]	; Size in KB
 	mov		bx, 0x0040
 	mul		bx			; kb * 1024 / 16 = paragraphs
-	mov		bx, ax
 	test		dx, dx
-	jz		.TryAlloc
-	mov		bx, 0xffff
+	jnz		.AllocFail		; if dx <> 0, fail
+	cmp		[LogInUMB], byte 0
+	jne		.TryAlloc		; if requesting UMB, try
+	mov		bx, cs
+	cmp		bx, 0xa000
+	jae		.TryAlloc		; is driver is loaded high, try
+	%warning Driver LOW, Logging LOW not supported
+	jmp		.AllocFail
 .TryAlloc:
+	mov		bx, ax
 	mov		ah, 0x48
 	int		0x21			; ax=segment, if error bx=max
 	jnc		.Allocated
+.AllocFail:
+	; CY can fe set or clear, sfEnabled is tested to check for success
 	ret
 
 .Allocated:

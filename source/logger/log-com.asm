@@ -411,7 +411,15 @@ LogViewer:
 	test		ax, ax
 	jnz		.NotEmpty
 
+	; move cursor to top/left
+	xor		dx, dx
+	mov		ah, 0x02
+	int		0x10
 	PrintMessage 	LogEmpty
+	xor		dx, dx
+	mov		ah, 0x02
+	int		0x10
+
 	mov		[Viewer.Flags], byte vfIsEmptyLog + vfAtTop + \
 			vfAtBottom + vfAtLeftmost + vfAtRightmost
 	jmp		.WaitKeyPress
@@ -907,7 +915,7 @@ ClearScreen:
 ;	jmp		ScrollUp.Down
 ;
 ;ScrollUp:
-	mov		al, 0x01		; count
+;	mov		al, 0x01		; count
 ;.Clearing:
 	mov		ah, 0x06		; BIOS fn 0x06 Scroll Up
 ;	jmp		.Scroll
