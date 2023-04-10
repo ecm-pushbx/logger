@@ -45,6 +45,12 @@
 ;
 ; %define NO_SPLIT_SEND
 
+; Noticed some weirdness when using Direct Capture in 40 column modes under
+; VirtualBox. There may also be issues on real hardware or other Virtual
+; platforms. So, I'm going to have the driver just use TTL capture in those
+; modes. Enable "DIRECT_40_COLUMNS" to use DirectMode mode instead.
+; %idefine DIRECT_40_COLUMNS
+
 ; -----------------------------------------------------------------------------
 
 %ifndef	NO_SPLIT_SEND
@@ -129,6 +135,9 @@ struc TDriverHeader
 	.XFR.DstAddr:	resd 1			; pointer to destination
 
 	.XFR.Buffer:	resb MaxXFRSize 	; TTL XFR Buffer
+
+	.RowSkip:	resw 1			; Number of rows to skip if
+						; using DirectMode.
 
 %ifdef	NO_SPLIT_SEND				; top unused buffer byte
 	.XMS.Top:	resd 1			; to prevent split send buffer

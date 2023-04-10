@@ -1,9 +1,9 @@
 To-Do for initial release:
 
-* Driver, the more advanced logging method
+* Driver, the more advanced logging method flush lines
 * Driver, when loaded low, support Logging to low memory
 
-Maybe stuff that could be in later releases that would not effect the device
+Maybe stuff that could be in later releases that should not increase the device
 driver's memory footprint.
 
 * Viewer, jump to end instead of paging down to reach end.

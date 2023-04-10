@@ -107,6 +107,9 @@ istruc TDriverHeader
 
 	at .XFR.Buffer,		db 0		; TTL XFR Buffer of MaxXFRSize
 
+	at .RowSkip,		dw 0		; Number of rows to skip if
+						; using DirectMode.
+
 %ifdef	NO_SPLIT_SEND
 	at .XMS.Top,		dd 0		; top unused buffer byte
 %endif
@@ -162,33 +165,37 @@ DevInt10:
 	push		cs
 	pop		ds	; mov ds, cs
 
-	; is driver enabled?
-	test		[Header(Status)], byte sfEnabled
-	jz		.CheckModeChange
-
-	test		[Header(Status)], byte sfSupport
-	jz		.CaptureTTL
 
 	; was mode previously changed?
 	test		[Header(Status)], byte sfModeChange
 	jz		.NoModeResetFlag
 
-	; only called if Mode was changed and DirectMode is supported
+	and		[Header(Status)], byte ~sfModeChange
+
+	test		[Header(Status)], byte sfSupport
+	jz		.CaptureTTL
+
 	call		ConfigCapture
 
 .NoModeResetFlag:
-	; test capture method
+
 	test		[Header(Status)], byte sfDirectMode ; direct method flag
 	jz		.CaptureTTL
 
 	call		DirectCapture
+
 	jmp		.CheckModeChange
 
 .CaptureTTL:
-	; if not Direct Capture method, simple BIOS TTL capture
+	; Simple BIOS TTL capture
+	; is driver enabled?
+	test		[Header(Status)], byte sfEnabled
+	jz		.CheckModeChange
+
 	cmp		ah, 0x0e
 	jne		.CheckModeChange
-	; bh = page, for now don't care
+	test		bh, bh			; if not page 0, don't capture
+	jnz		.Done
 	call		AppendBuffer
 	jmp		.Done
 
@@ -197,6 +204,7 @@ DevInt10:
 	jnz		.Done
 	call		FlushBuffer
 	or		[Header(Status)], byte sfModeChange ; set flag
+
 .Done:
 	pop		ds
 	popf
@@ -247,12 +255,12 @@ FlushFarCall:
 ; -----------------------------------------------------------------------------
 
 FlushBuffer:
-;	test		[Header(Status)], byte sfDirectMode ; direct method flag
-;	jz		.SendBuffer
-;	call		DirectFlush
-;.SendBuffer:
-;	call		SendToLog
-;	ret
+	test		[Header(Status)], byte sfDirectMode ; direct method flag
+	jz		.SendBuffer
+	call		DirectFlush
+.SendBuffer:
+	call		SendToLog
+	ret
 
 ; -----------------------------------------------------------------------------
 ; Transfer buffer to Log storage.
@@ -500,6 +508,11 @@ ConfigCapture:
 	cmp		al, 0x07		; is 80x25 mono?
 	je		.MaybeDirectMethod
 	mov		bx, 0xb800 		; mono segment
+	%ifndef DIRECT_40_COLUMNS
+		cmp		al, 0x02		; is 40 column?
+		jb		.SetMethodDone
+
+	%endif
 	cmp		al, 0x03		; not 80x? or 40x?
 	jbe		.MaybeDirectMethod
 	; possible support other modes like 132x50
@@ -525,7 +538,7 @@ ConfigCapture:
 	mov		[DirectData.VSeg], bx
 	mov		ch, al
 	mov		[DirectData.MaxXY], cx
-;	mov		[DirectData.Row], word -1 ; set last captured line
+	mov		[Header(RowSkip)], word 0 ; set start row to 0
 	or		[Header(Status)], byte sfDirectMode + sfSupport
 .SetMethodDone:
 	pop		dx
@@ -540,13 +553,14 @@ ConfigCapture:
 DirectCapture:
 	push		es
 	push		ax
-	push		cx
 	push		bx
-	mov		bx, 0x0040
-	mov		es, bx
-	pop		bx
+	push		cx
+	push		ax
+	mov		ax, 0x0040
+	mov		es, ax
+	pop		ax
 	test 		ah, ah
-	jz		.ModeChange
+	jz		.SendFull		; .ModeChange
 	cmp		ax, 0x0e0a		; write TTL LF
 	jne		.NotLineFeedTTL
 	test		bh, bh
@@ -568,14 +582,38 @@ DirectCapture:
 	test		al ,al
 	jz		.ScreenClear		; scroll up all lines
 	; scroll up AL count
-	xor		ch, ch
 	mov		cl, al
+.SendLines:
+	xor		ch, ch
+	test		cx, cx
+	jz		.Done			; line count 0, done
 	xor		ax, ax
+	mov		bx, [Header(RowSkip)]
 .Sending:
-	call		DirectSendRow
+	cmp		bx, 0
+	jg		.SkipSending
+.SendNeeded:
+	; if driver is not enabled, don't actually send to log?
+	test		[Header(Status)], byte sfEnabled
+	jz		.SkipSending
+ 	call		DirectSendRow
+.SkipSending:
+	dec		bx
 	inc		ax
 	loop		.Sending
+	cmp		bx, 0
+	jge		.SetSkip	; still more old Rows to skip
+	neg		bx		; new skip count of captured rows
+.SetSkip:
+	mov		[Header(RowSkip)], bx
 	jmp		.Done
+
+.SendFull:
+	mov		cl, [es:0x0050 + 1]		; cursor position page 0
+	; Not performing an "INC CL" may cause a line to be skipped. (needs more testing)
+	; inc		cl
+	jmp		.SendLines
+
 .ScreenClear:
 	; check if window or full screen clear
 	test		cx, cx
@@ -588,13 +626,26 @@ DirectCapture:
 	cmp		dh, ch
 	jb		.Done
 	; is full screen clear
-.ModeChange:
-	call		DirectSendFull
+; .ModeChange:
+	jmp		.SendFull
 .Done:
 	pop		cx
+	pop		bx
 	pop		ax
 	pop		es
 	ret
+
+; -----------------------------------------------------------------------------
+
+DirectFlush:
+	call		SendToLog
+	push		es
+	push		ax
+	push		bx
+	push		cx
+	mov		ax, 0x0040
+	mov		es, ax
+	jmp		DirectCapture.SendFull
 
 ; -----------------------------------------------------------------------------
 
@@ -685,27 +736,6 @@ DirectSendRow:
 	pop		ax
 	ret
 
-; -----------------------------------------------------------------------------
-
-DirectSendFull:
-	ret
-
-; -----------------------------------------------------------------------------
-
-;DirectFlush:
-;	call		SendToLog
-;	push		es
-;	push		ax
-;	push		cx
-;	mov		ax, 0x0040
-;	mov		es, ax
-;	mov		ax, [es:0x0050]	; page 0 cursor position
-;
-;.Done:
-;	pop		cx
-;	pop		ax
-;	pop		es
-;	ret
 
 ; -----------------------------------------------------------------------------
 
@@ -716,7 +746,6 @@ DirectData:
 	.MaxXY:
 	.MaxX:		db 0
 	.MaxY:		db 0
-;	.Row:		dw 0
 
 ; -----------------------------------------------------------------------------
 ; Not needed if using XMS Memory. Only required for UMB and LOW memory LOG
@@ -1287,7 +1316,7 @@ LoadSeg:
 
 Banner:
 	db	0x0d,0x0a
-	db	'System Boot Message Logger, ',VERSION,0x0d,0x0a
+	db	'Message Logger, ',VERSION,0x0d,0x0a
 	CopyrightText
 	db	'$'
 

@@ -106,13 +106,12 @@ DriverFound:
 	mov		ax, [es:Header(Status)]
 	mov		[OrgStat], ax
 
-	; disable driver
-	and		al , ~sfEnabled
-	mov		[es:Header(Status)], ax
-
 	; make sure buffer contents have been written.
 	call		far [es:Header(Flush)]
 
+	; disable driver
+	and		al , ~sfEnabled
+	mov		[es:Header(Status)], ax
 
 	; test if StdIn is redirected
 	mov		ax, 0x4400
@@ -173,6 +172,16 @@ DriverFound:
 	%endif
 
 .HadOptions:
+	; update driver RowSkip count
+	push		es
+	mov		ax, 0x0040
+	mov		es, ax
+	mov		al, [es:0x0050 + 1] 	; page 0 cursor row position
+	pop		es
+	xor		ah, ah
+	; inc		ax ; because of "INC CX" in driver, would cause line to be skipped.
+	mov		[es:Header(RowSkip)], ax
+
 	; check if we should set driver to enabled/disabled state, or stay off
 	test		[Flags], byte ofKeepStatus
 	jz		ExitNoError
@@ -1362,7 +1371,7 @@ DriverID:
 	DeviceDriverID
 
 Banner:
-	db	'System Boot Message Log Interface Utility, ',VERSION,0x0d,0x0a
+	db	'Message Logging Interface Utility, ',VERSION,0x0d,0x0a
 	CopyrightText
 	db	'$'
 NoDriver:
