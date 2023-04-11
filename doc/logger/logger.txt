@@ -1,6 +1,6 @@
 *******************************************************************************
 ALPHA DOCUMENTATION. NOT ALL FUNCTIONALITY OR OPTIONS HAVE BEEN IMPLEMENTED.
-THOSE MAY BE CHANGED, REMOVED OR EVEN MORE ADDED IN THE RELEASE VERSION. SEE
+THOSE MAY BE CHANGED, REMOVED OR EVEN MORE ADDED IN THE RELEASE VERSION.
 
 *******************************************************************************
 
@@ -19,6 +19,11 @@ driver. The interface program can view and perform other actions on the log
 when the driver is loaded.
 
 see TO-DO for known and potential future features.
+
+If you need to save a couple bytes of disk space, both the driver and interface
+program can be compressed using "upx --8086 logger.*" for about a 25% reduction
+in size. However, it will have no effect on the memory footprint of the driver
+once it has been loaded.
 
 *******************************************************************************
 
@@ -95,7 +100,7 @@ Options that leave logging disabled unless overridden:
 Options that will return logging to its previous state:
 
 	VERSION, VER	Display version information.
-	HELP, /?	Display this help text.
+	HELP, ?		Display this help text.
 	INFORMATION	Display some status information about the driver.
 	QUIET		Do not display error when logging driver is not loaded.
 
@@ -103,7 +108,6 @@ Options that will return logging to its previous state:
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
 	THRU		Log and pass along any redirected standard input text.
-
 
 Options must be separated by one or more SPACE, COMMA or SEMI-COLON characters.
 Most options only require their first letter, for example C is short CLEAR. The

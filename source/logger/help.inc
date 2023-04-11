@@ -8,7 +8,7 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	ANSI		Just like PRINT, but includes ANSI color sequences.
 
 	VERSION, VER	Display version information.
-	HELP, /?	Display this help text.
+	HELP, ?		Display this help text.
 	INFORMATION	Display some status information about the driver.
 	QUIET		Do not display error when logging driver is not loaded.
 

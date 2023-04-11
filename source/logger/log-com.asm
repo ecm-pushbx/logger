@@ -256,11 +256,9 @@ OptionTable:
 %endif
 	; help alternative names
 	dw		Option_Help
-	db 		'/HELP', 0
-	dw		Option_Help
-	db 		'/H', 0
-	dw		Option_Help
 	db 		'/?', 0
+	dw		Option_Help
+	db 		'?', 0
 	dw		0,Option_Bad ; catch all
 
 ; -----------------------------------------------------------------------------
