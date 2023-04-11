@@ -1332,6 +1332,16 @@ PrintLog:
 	mov		dx, [Buffer]
 	test		[Flags], byte ofColorPrint
 	jz		.ColorIsSet
+
+	cmp		dl, 0x0d
+	jne		.NotCR
+	mov		dh, 0x07
+.NotCR:
+	cmp		dl, 0x0a
+	jne		.NotLF
+	mov		dh, 0x07
+.NotLF:
+
 	cmp		dh, [LastColor]
 	je		.ColorIsSet
 	mov		[LastColor], dh
