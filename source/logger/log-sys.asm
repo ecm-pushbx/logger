@@ -583,8 +583,14 @@ DirectCapture:
 	jz		.ScreenClear		; scroll up all lines
 	; scroll up AL count
 	mov		cl, al
-
 	call		DirectSendLines
+	sub		bx, cx
+	cmp		bx, 0
+	jae		.AdjustSkip
+	xor		bx, bx
+.AdjustSkip:
+	mov		[Header(RowSkip)], bx
+
 	jmp		.Done
 
 .ScreenClear:
@@ -602,6 +608,7 @@ DirectCapture:
 ; .ModeChange:
 .SendFull:
 	call		DirectSendFull
+	mov		[Header(RowSkip)], word 0; reset skip count
 .Done:
 	pop		cx
 	pop		bx
@@ -611,6 +618,7 @@ DirectCapture:
 
 
 ; -----------------------------------------------------------------------------
+
 DirectSendFull:
 	mov		cl, [es:0x0050 + 1]	; cursor position page 0
 	; Not performing an "INC CL" may cause a line to be skipped. (needs more testing)
@@ -618,10 +626,11 @@ DirectSendFull:
 
 DirectSendLines:
 	xor		ch, ch
-	test		cx, cx
-	jz		.Done			; line count 0, done
+	push		cx
 	xor		ax, ax
 	mov		bx, [Header(RowSkip)]
+	test		cx, cx
+	jz		.Done			; line count 0, done
 .Sending:
 	cmp		bx, 0
 	jg		.SkipSending
@@ -636,11 +645,12 @@ DirectSendLines:
 	loop		.Sending
 	cmp		bx, 0
 	jge		.SetSkip	; still more old Rows to skip
-	neg		bx		; new skip count of captured rows
+	xor 		bx, bx
 .SetSkip:
+	add		bx, ax
 	mov		[Header(RowSkip)], bx
-	jmp		.Done
 .Done:
+	pop		cx
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -694,40 +704,35 @@ DirectSendRow:
 	dec		si			; si=offset to end of line
 	mov		bx, 0x0720		; blank space
 	std
+%ifdef DIRECT_SEND
+	%fatal 	Need to send entire color line to log at once
+%else
 	test		[Header(Status)], byte sfInColor
-	jz		.MonoMode
-.ColorMode:
+	jnz		.ColorCount
+
+.MonoCount:
+	es lodsw
+	cmp		al, bl
+	jne		.Counted
+	loop		.MonoCount
+	jmp		.Counted
+.ColorCount:
 	es lodsw
 	cmp		ax, bx
-	jne		.ColorCounted
-	loop		.ColorMode
-.ColorCounted:
+	jne		.Counted
+	loop		.ColorCount
+.Counted:
 	cld
 	test		cx, cx
 	jz		.SendCRLF
 	mov		si, dx
-	%warning 	Need to send entire color line to log at once
-.ColorSend:
+.Send:
 	es lodsw
 	mov		bl, ah
 	call		AppendBuffer
-	loop		.ColorSend
-	jmp		.SendCRLF
+	loop		.Send
+%endif
 
-.MonoMode:
-	es lodsw
-	cmp		al, bl
-	jne		.MonoCounted
-	loop		.MonoMode
-.MonoCounted:
-	cld
-	test		cx, cx
-	jz		.SendCRLF
-	mov		si, dx
-.MonoSend:
-	es		lodsw
-	call		AppendBuffer
-	loop		.MonoSend
 
 .SendCRLF:
 	mov		ax, 0x070d
@@ -753,8 +758,6 @@ DirectSendRow:
 ; -----------------------------------------------------------------------------
 
 DirectData:
-;	.VPtr:
-;	.VOfs:		dw 0
 	.VSeg:		dw 0
 	.MaxXY:
 	.MaxX:		db 0

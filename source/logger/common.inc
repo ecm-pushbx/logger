@@ -30,18 +30,25 @@
 
 ; NASM 2.15.05, or later
 
+; -----------------------------------------------------------------------------
+; experimental and development conditional defines.
+; you should probably not change them.
+; -----------------------------------------------------------------------------
+
 ; include some debugging code and the DEBUG option in LOGGER.COM
+;
 ;%define DEBUG
 
 ; include a debugging data buffer for checking values
+;
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
 
-; disable splitting send buffer to when wrapping writes around in the LOG
+; disable splitting the send buffer when wrapping writes around in the LOG
 ; storage. This will include a TOP value in the device header and requires both
 ; the device driver and interface program to be compiled accordingly. NON-split
 ; sending was just an experiment to see if it reduced code size. But as it
-; turned out, the monitoring and updating of the the additional required
-; variables requires a couple more bytes of code than splitting the send buffer.
+; turned out, the monitoring and updating of the the additional variables
+; required a couple more bytes of code than just splitting the send buffer.
 ;
 ; %define NO_SPLIT_SEND
 
@@ -49,7 +56,17 @@
 ; VirtualBox. There may also be issues on real hardware or other Virtual
 ; platforms. So, I'm going to have the driver just use TTL capture in those
 ; modes. Enable "DIRECT_40_COLUMNS" to use DirectMode mode instead.
-; %idefine DIRECT_40_COLUMNS
+;
+; %define DIRECT_40_COLUMNS
+
+; There may or may not be a noticeable performance difference between sending
+; the entire DirectMode text to memory as a single block directly. Currently,
+; it is cached in the send buffer, then sent to Log storage. Eventually the
+; "DIRECT_SEND" directive will switch to sending video memory to the log when
+; in a supported mode and color logging is enabled. But, increases the driver
+; footprint and may not be worth the extra bytes.
+;
+; %define DIRECT_SEND
 
 ; -----------------------------------------------------------------------------
 
