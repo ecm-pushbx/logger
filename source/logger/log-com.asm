@@ -45,6 +45,7 @@ section .text
 %define COLOR_MESSAGE	0x0e
 %define COLOR_STDIN	0x0f
 %define COLOR_MONO	0x07
+%define COLOR_SNAPSHOT  0x0a2d
 
 %define Header(x) TDriverHeader. %+ x
 
@@ -1007,6 +1008,8 @@ Option_Snapshot:
 	jnz		Option_Done
 	or		[Flags], byte ofKeepStatus
 
+	call		SnapStart
+
 	VideoSettings
 
 	; since we know video segment, offset, columns and rows, we most likely
@@ -1063,6 +1066,9 @@ Option_Snapshot:
 	pop		cx
 	inc		dh 		; next row
 	loop		.Rows
+
+	call		SnapEnd
+
 	call		FlushBuffer
 
 	; restore cursor position for page
@@ -1073,6 +1079,39 @@ Option_Snapshot:
 	; pop		bp	; don't care
 
 	jmp		Option_Done
+
+SnapStart:
+	push		si
+	push		ax
+	push		cx
+	mov		cx, 33
+	mov		si, SnapshotStart
+	jmp		SnapMsg
+SnapEnd:
+	push		si
+	push		ax
+	push		cx
+	mov		cx, 34
+	mov		si, SnapshotEnd
+SnapMsg:
+	push		cx
+	mov		ax, COLOR_SNAPSHOT
+.First:
+	call		AppendBuffer
+	loop		.First
+	call		StringToLog
+	pop		cx
+.Second:
+	call		AppendBuffer
+	loop		.Second
+	mov		al, 0x0d
+	call		AppendBuffer ; add CR to end of line
+	mov		al, 0x0a
+	call		AppendBuffer ; add LF to end of line
+	pop		cx
+	pop		ax
+	pop		si
+	ret
 
 ; -----------------------------------------------------------------------------
 
@@ -1122,6 +1161,27 @@ Option_Msg:
 .Done:
 	; popf
 	jmp		Option_Done
+
+
+; -----------------------------------------------------------------------------
+
+StringToLog:
+	; ah=color
+	; ds:si->String
+	cld
+	push		si
+.Next:
+	lodsb
+	cmp		al, 0x20
+	jb		.Done
+	cmp		al, '$'
+	je		.Done
+	call		AppendBuffer
+	jmp		.Next
+.Done:
+	pop		si
+
+	ret
 
 ; -----------------------------------------------------------------------------
 
@@ -1404,6 +1464,12 @@ CRLF:
 
 XMSError:
 	db	'XMS error #$'
+
+SnapshotStart:
+	db	'begin snapshot$'
+SnapshotEnd:
+	db	'end snapshot$'
+
 
 AnsiPrefix:
 	db	27,'[0;$'
