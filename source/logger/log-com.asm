@@ -45,7 +45,7 @@ section .text
 %define COLOR_MESSAGE	0x0e
 %define COLOR_STDIN	0x0f
 %define COLOR_MONO	0x07
-%define COLOR_SNAPSHOT  0x0a2d
+%define COLOR_SNAPSHOT  0x0b2d
 
 %define Header(x) TDriverHeader. %+ x
 
@@ -1084,14 +1084,14 @@ SnapStart:
 	push		si
 	push		ax
 	push		cx
-	mov		cx, 33
+	mov		cx, 32
 	mov		si, SnapshotStart
 	jmp		SnapMsg
 SnapEnd:
 	push		si
 	push		ax
 	push		cx
-	mov		cx, 34
+	mov		cx, 33
 	mov		si, SnapshotEnd
 SnapMsg:
 	push		cx
@@ -1099,8 +1099,13 @@ SnapMsg:
 .First:
 	call		AppendBuffer
 	loop		.First
+	mov		al, 0x20
+	call		AppendBuffer
 	call		StringToLog
+	mov		al, 0x20
+	call		AppendBuffer
 	pop		cx
+	mov		ax, COLOR_SNAPSHOT
 .Second:
 	call		AppendBuffer
 	loop		.Second
