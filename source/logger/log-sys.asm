@@ -583,7 +583,40 @@ DirectCapture:
 	jz		.ScreenClear		; scroll up all lines
 	; scroll up AL count
 	mov		cl, al
-.SendLines:
+
+	call		DirectSendLines
+	jmp		.Done
+
+.ScreenClear:
+	; check if window or full screen clear
+	test		cx, cx
+	jnz		.Done
+	mov		cx, [DirectData.MaxXY]
+	dec		cl
+	dec		ch
+	cmp		dl, cl
+	jb		.Done
+	cmp		dh, ch
+	jb		.Done
+	; is full screen clear
+; .ModeChange:
+.SendFull:
+	call		DirectSendFull
+.Done:
+	pop		cx
+	pop		bx
+	pop		ax
+	pop		es
+	ret
+
+
+; -----------------------------------------------------------------------------
+DirectSendFull:
+	mov		cl, [es:0x0050 + 1]	; cursor position page 0
+	; Not performing an "INC CL" may cause a line to be skipped. (needs more testing)
+	; inc		cl
+
+DirectSendLines:
 	xor		ch, ch
 	test		cx, cx
 	jz		.Done			; line count 0, done
@@ -607,32 +640,7 @@ DirectCapture:
 .SetSkip:
 	mov		[Header(RowSkip)], bx
 	jmp		.Done
-
-.SendFull:
-	mov		cl, [es:0x0050 + 1]		; cursor position page 0
-	; Not performing an "INC CL" may cause a line to be skipped. (needs more testing)
-	; inc		cl
-	jmp		.SendLines
-
-.ScreenClear:
-	; check if window or full screen clear
-	test		cx, cx
-	jnz		.Done
-	mov		cx, [DirectData.MaxXY]
-	dec		cl
-	dec		ch
-	cmp		dl, cl
-	jb		.Done
-	cmp		dh, ch
-	jb		.Done
-	; is full screen clear
-; .ModeChange:
-	jmp		.SendFull
 .Done:
-	pop		cx
-	pop		bx
-	pop		ax
-	pop		es
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -645,7 +653,12 @@ DirectFlush:
 	push		cx
 	mov		ax, 0x0040
 	mov		es, ax
-	jmp		DirectCapture.SendFull
+	call		DirectSendFull
+	pop		cx
+	pop		bx
+	pop		ax
+	pop		es
+	ret
 
 ; -----------------------------------------------------------------------------
 
