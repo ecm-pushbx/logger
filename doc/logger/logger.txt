@@ -1,6 +1,7 @@
 *******************************************************************************
-BETA DOCUMENTATION. NOT ALL FUNCTIONALITY OR OPTIONS HAVE BEEN IMPLEMENTED.
-THOSE MAY BE CHANGED, REMOVED OR EVEN MORE ADDED IN THE RELEASE VERSION.
+ALPHA DOCUMENTATION. NOT ALL FUNCTIONALITY OR OPTIONS HAVE BEEN IMPLEMENTED.
+THOSE MAY BE CHANGED, REMOVED OR EVEN MORE ADDED IN THE RELEASE VERSION. SEE
+
 *******************************************************************************
 
 			        L O G G E R
@@ -21,11 +22,10 @@ see TO-DO for known and potential future features.
 
 *******************************************************************************
 
-LOGGER.SYS [XMS | UMB | LOW] [COLOR | MONO] [JAM] [size]
+LOGGER.SYS  [size] [COLOR | MONO] [XMS | UMB] [JAM]
 
 	XMS	Try XMS for log data storage.
 	UMB	Try upper memory for log storage.
-	LOW	Try lower memory for log storage.
 
 	COLOR	Record color attributes associated with log text.
 	MONO	Only record log text (doubles log capacity).
@@ -39,11 +39,11 @@ Most options only require their first letter, for example X is short XMS. All
 parameters must be separated by one or more SPACE, COMMA or SEMI-COLON
 characters.
 
-The placement of the XMS, UMB and LOW options is very important. The attempt
-to allocate a buffer occurs when one of those options is encountered and uses
+The placement of the XMS and LOW options is very important. The attempt to
+allocate a buffer occurs when one of those options is encountered and uses
 the current settings. When no options are provided, the device driver will use:
 
-256 COLOR XMS 16 MONO UMB 16 MONO LOW
+256 COLOR XMS 16 MONO UMB
 
 This will cause the driver to first try to allocate a 256K XMS buffer using
 color capture mode. If that does not succeed, it will continue with next series
@@ -56,8 +56,8 @@ The number of pages that can be stored per KB can very widely based on the
 text being logged. In monochrome mode, it could range from about 0.5 to 512
 pages. Generally, you can expect about 1 page per KB.
 
-Logging to UMB or LOW memory will increase the drivers memory footprint by
-roughly 100 bytes.
+Logging to UMB memory will increase the drivers memory footprint by roughly 100
+bytes.
 
 When logging to UMB, the driver will attempt to allocate memory using different
 methods. First, it will attempt to create the LOG storage buffer using DOS
@@ -68,10 +68,10 @@ allocate buffer space.
 EXAMPLES:
 
 DEVICEHIGH=C:\DOS\LOGGER.SYS
-DEVICEHIGH=C:\DOS\LOGGER.SYS C,2048,X; 256,X; 128,M,X; 64,C,U; M,16,U; L,16
-DEVICEHIGH=C:\DOS\LOGGER.SYS JAM COLOR 32 UMB MONO 16 UMB
-DEVICEHIGH=C:\DOS\LOGGER.SYS color 32 UMB, mono 16 UMB, 8 LOW; JAM
-DEVICE=C:\DOS\LOGGER.SYS m,8 low
+DEVICEHIGH=C:\DOS\LOGGER.SYS C,2048,X; 256,X; 128,M,X; 64,C,U; M,16,U
+DEVICEHIGH=C:\DOS\LOGGER.SYS JAM COLOR 32 XMS MONO 16 UMB
+DEVICEHIGH=C:\DOS\LOGGER.SYS color 32 UMB, mono 16 UMB, JAM
+DEVICE=C:\DOS\LOGGER.SYS m,64 xms
 
 (Although the comma and semi-colon function as parameter separators, they can
 be considered decorations that can help with reading and editin a long series
@@ -94,17 +94,21 @@ Options that leave logging disabled unless overridden:
 
 Options that will return logging to its previous state:
 
-	VERSION		Display version information.
-	HELP		Display this help text.
+	VERSION, VER	Display version information.
+	HELP, /?	Display this help text.
 	INFORMATION	Display some status information about the driver.
+	QUIET		Do not display error when logging driver is not loaded.
+
 	VIEW		View the log.
 	MESSAGE text	Add the remaining command line as text to the log.
 	SNAPSHOT	Store a snapshot of the screen in the log.
 	THRU		Log and pass along any redirected standard input text.
 
+
 Options must be separated by one or more SPACE, COMMA or SEMI-COLON characters.
 Most options only require their first letter, for example C is short CLEAR. The
-exceptions are ON and OFF which must be specified in their entirety.
+exceptions are ON, OFF, HELP and VERSION which must be specified in their
+entirety.
 
 LOGGER always disables logging when executed. Based on the options provided on
 the command line, logging may or may not be enabled when the program finishes

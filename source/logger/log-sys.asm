@@ -1177,10 +1177,12 @@ DOSAlloc:
 	jnz		.AllocFail		; if dx <> 0, fail
 	cmp		[LogInUMB], byte 0
 	jne		.TryAlloc		; if requesting UMB, try
-	mov		bx, cs
-	cmp		bx, 0xa000
-	jae		.TryAlloc		; is driver is loaded high, try
-	%warning Driver LOW, Logging LOW not supported
+	%ifdef LOW_MEM_LOG
+		mov		bx, cs
+		cmp		bx, 0xa000
+		jmp		.TryAlloc	; is driver is loaded high, try
+	%endif
+
 	jmp		.AllocFail
 .TryAlloc:
 	mov		bx, ax
@@ -1211,6 +1213,7 @@ DOSAlloc:
 	mov		[Header(XMS.Driver)+2], cs
 	jmp		SuccessfulAlloc
 ; -----------------------------------------------------------------------------
+%ifdef LOW_MEM_LOG
 
 Option_LOW:
 	test		[Header(Status)], byte sfEnabled
@@ -1221,6 +1224,7 @@ Option_LOW:
 	mov		dx, NotEnoughLOW
 	jmp		Option_Failed
 
+%endif
 ; -----------------------------------------------------------------------------
 
 Option_JAM:
@@ -1268,7 +1272,7 @@ Option_Done:
 Option_Bad:
 	PrintMessage 	BadOptionPre
 	PrintOptionText
-	PrintMessage 	BadOptionPre
+	PrintMessage 	BadOptionPost
 	; fall through to Option_Stop
 	test		[Header(Status)], byte sfEnabled
 	jnz		Option_Done
@@ -1295,8 +1299,10 @@ OptionTable:
 	db		'XMS', 0
 	dw		Option_UMB
 	db		'UMB', 0
+%ifdef LOW_MEM_LOG
 	dw		Option_LOW
 	db		'LOW', 0
+%endif
 	dw		Option_JAM
 	db		'JAM', 0
 	dw		Option_COLOR
@@ -1308,8 +1314,10 @@ OptionTable:
 	db		'X', 0
 	dw		Option_UMB
 	db		'U', 0
+%ifdef LOW_MEM_LOG
 	dw		Option_LOW
 	db		'L', 0
+%endif
 	dw		Option_JAM
 	db		'J', 0
 	dw		Option_COLOR
@@ -1371,7 +1379,11 @@ NewLine:
 	db 	0x0d,0x0a,'$'
 
 DefaultOptions:
+%ifdef LOW_MEM_LOG
 	db	'256 COLOR XMS 16 MONO UMB 16 MONO LOW',0
+%else
+	db	'256 COLOR XMS 16 MONO UMB',0
+%endif
 
 HadOption:
 	db	0

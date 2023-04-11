@@ -1,18 +1,19 @@
 To-Do for initial release:
 
-* Driver, the more advanced logging method flush lines
-* Driver, when loaded low, support Logging to low memory
+* Testing
+* Maybe some byte squeezing
 
 Maybe stuff that could be in later releases that should not increase the device
 driver's memory footprint.
 
 * Viewer, jump to end instead of paging down to reach end.
-* HTML format log output.
+* HTML formatted log print out.
 * Export log or selection from viewer to file (TEXT, ANSI, HTML).
 * Resize LOG capacity.
 * Force simple capture mode even when Advanced Capture is supported.
 * Enable/Disable Log JAM mode.
 * Single EXE instead of SYS+COM files.
+* Support for Logging to LOW memory on hardware without XMS, UMB or EMS.
 
 Maybe do in later releases. They would increase the size of device driver. So,
 might not. We will see.
@@ -27,6 +28,7 @@ might not. We will see.
 would permit other programs (including the log interface program) to easily
 test if it is installed. Also it would provide status information and a simple
 way to read and write messages in the log.
+* Logging to EMS memory
 
 Just under consideration. These would also increase the size of the device
 driver. But, they would probably not provide much benefit to actual usage.

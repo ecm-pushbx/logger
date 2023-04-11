@@ -80,7 +80,10 @@ Initialize:
 	mov		dx, BadDriver
 
 ErrorExit:
+	test		[Flags+1], byte ofHushMode
+	jnz		.NoMessage
 	PrintMessage	dx
+.NoMessage:
 	; Terminate with error code 1
 	mov		ax,0x4c01
 	int		0x21
@@ -221,11 +224,11 @@ OptionTable:
 	db		'SNAPSHOT', 0
 	dw 		Option_PassThru
 	db		'THRU', 0
+	dw 		Option_Quiet
+	db		'QUIET', 0
 	; abbreviated options
-	dw		Option_Help
-	db 		'H', 0
 	dw		Option_Version
-	db 		'V', 0
+	db 		'VER', 0
 	dw		Option_Status
 	db	 	'I', 0
 	dw		Option_Clear
@@ -242,6 +245,8 @@ OptionTable:
 	db		'S', 0
 	dw 		Option_PassThru
 	db		'T', 0
+	dw 		Option_Quiet
+	db		'Q', 0
 %ifdef DEBUG
 	dw		Option_Debug
 	db		'DEBUG',0
@@ -280,8 +285,14 @@ Option_Help:
 ; -----------------------------------------------------------------------------
 
 Option_PassThru:
-	or		[Flags+1], byte ofPassThru
 	or		[Flags], byte ofKeepStatus
+	or		[Flags+1], byte ofPassThru ; sets high byte
+	jmp		Option_Done
+
+; -----------------------------------------------------------------------------
+
+Option_Quiet:
+	or		[Flags+1], byte ofHushMode ; sets high byte
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -1214,7 +1225,7 @@ PrintLog:
 
 	call		PrepareForXMS
 .PrintLoop:
-	; add stuff to buffer transfers of 1k blocks at a times
+	; maybe add stuff to buffer transfers of entire blocks at one time
 
 .MoreData:
 	mov		cx, 0x0002
@@ -1405,7 +1416,7 @@ AnsiColors:
 	db	0x30,0x34,0x32,0x36,0x31,0x35,0x33,0x37
 
 Flags:
-	db	ofPreTest
+	dw	ofPreTest
 
 LastColor:
 	db	0

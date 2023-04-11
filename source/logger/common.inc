@@ -68,6 +68,16 @@
 ;
 ; %define DIRECT_SEND
 
+; Do not enable, only works under FreeDOS when Driver is loaded in UMB.
+; otherwise, system is very unstable if it boots at all.
+;
+; %define LOW_MEM_LOG
+
+; Select driver searching to use longer slower method. May want to use it
+; anyway when DEVICE_DRIVER is defined.
+;
+; %define SEARCH_ALL
+
 ; -----------------------------------------------------------------------------
 
 %ifndef	NO_SPLIT_SEND
@@ -112,6 +122,7 @@
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
 ; interface status and option flags (high byte)
 %idefine ofPassThru	00000001b	; bit 8 = also send any STDIN to STDOUT
+%idefine ofHushMode	00000010b	; bit 9 = do not warn about no driver
 
 ; interface viewer navigation control flags (low byte)
 %idefine vfAtTop	00000001b	; bit 0 = can not scroll up
@@ -249,10 +260,16 @@ endstruc
 ; Not perfect or fast, But good enough for now. There is most likely a far
 ; better way to find out if the logging driver is loaded and it's location in
 ; memory. But after trying a couple different things, I just settled on using
-; this method.
+; this method. In part, to prevent a potential collision with hooking an
+; interrupt or other type of probing.
 
 PROC_FindDeviceDriver:
-	mov		bx, 0x0100
+
+	%ifdef SEARCH_ALL
+		mov		bx, 0x0100
+	%else
+		mov		bx, 0xa000
+	%endif
 	mov		dx, ds
 	cld
 %%Scanning:
@@ -296,11 +313,15 @@ PROC_FindDeviceDriver:
 %%Next:
 	inc		bx
 	cmp		bx, dx
-	je		%%Next
-	jb		%%CheckFailed
-	cmp		bx, 0xa000
-	jae		%%CheckFailed
-	mov		bx, 0xa000
+	%ifdef SEARCH_ALL
+		je		%%Next
+		jb		%%CheckFailed
+		cmp		bx, 0xa000
+		jae		%%CheckFailed
+		mov		bx, 0xa000
+	%else
+		je		%%Error
+	%endif
 %%CheckFailed:
 	test		bx, bx
 	jnz		%%Scanning
