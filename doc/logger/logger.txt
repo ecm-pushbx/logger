@@ -44,7 +44,7 @@ Most options only require their first letter, for example X is short XMS. All
 parameters must be separated by one or more SPACE, COMMA or SEMI-COLON
 characters.
 
-The placement of the XMS and LOW options is very important. The attempt to
+The placement of the XMS and UMB options is very important. The attempt to
 allocate a buffer occurs when one of those options is encountered and uses
 the current settings. When no options are provided, the device driver will use:
 
