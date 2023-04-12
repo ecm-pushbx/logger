@@ -76,7 +76,7 @@
 ; Select driver searching to use longer slower method. May want to use it
 ; anyway when DEVICE_DRIVER is defined.
 ;
-; %define SEARCH_ALL
+%define SEARCH_LOW
 
 ; -----------------------------------------------------------------------------
 
@@ -265,12 +265,12 @@ endstruc
 
 PROC_FindDeviceDriver:
 
-	%ifdef SEARCH_ALL
+	mov		dx, ds
+	%ifdef SEARCH_LOW
 		mov		bx, 0x0100
 	%else
 		mov		bx, 0xa000
 	%endif
-	mov		dx, ds
 	cld
 %%Scanning:
 	push		bx
@@ -312,19 +312,22 @@ PROC_FindDeviceDriver:
 	jmp		%%Done
 %%Next:
 	inc		bx
-	cmp		bx, dx
-	%ifdef SEARCH_ALL
-		je		%%Next
-		jb		%%CheckFailed
+	%ifdef SEARCH_LOW
+		cmp		bx, 0x0100
+		jb		%%Error
+		cmp		bx, dx
+		jne		%%Scanning
 		cmp		bx, 0xa000
-		jae		%%CheckFailed
+		ja		%%Next
 		mov		bx, 0xa000
+		jmp		%%Scanning
 	%else
+		cmp		bx, 0xa000
 		je		%%Error
+		cmp		bx, dx
+		je		%%Next
+		jmp		%%Scanning
 	%endif
-%%CheckFailed:
-	test		bx, bx
-	jnz		%%Scanning
 %%Error:
 	stc
 %%Done:
