@@ -87,13 +87,21 @@
 %define MaxXFRSize  80 * 2
 
 ; -----------------------------------------------------------------------------
-%idefine VERSION 'ALPHA-1'
+%idefine VERSION 'ALPHA-2'
 
 %imacro CopyrightText 0
-	db	'Copyright (c)', 0x20
+	%ifndef DEVICE_DRIVER
+		db	'Copyright '
+	%endif
+	db 	'(c)', 0x20
 	db 	%substr(__DATE__,1,4), ',', 0x20
-	db 	'Jerome Shidel', 0x0d, 0x0a
-	db	'BSD 3-Clause License', 0x0d, 0x0a, 0x0a
+	db 	'Jerome Shidel'
+	%ifdef DEVICE_DRIVER
+		db	', BSD 3-Clause License', 0x0d, 0x0a
+	%else
+		db 	0x0d, 0x0a
+		db	'BSD 3-Clause License', 0x0d, 0x0a, 0x0a
+	%endif
 %endmacro
 
 %imacro DeviceDriverID 0
@@ -304,8 +312,9 @@ PROC_FindDeviceDriver:
 		%endif
 			je	%%Found
 			or	[Flags], byte ofBadVersion
-			jmp	%%Error
+			jmp	%%Next
 		%%Found:
+			and	[Flags], byte ~ofBadVersion
 	%endif
 
 	clc

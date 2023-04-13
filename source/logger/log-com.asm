@@ -1455,7 +1455,7 @@ DriverID:
 	DeviceDriverID
 
 Banner:
-	db	'Message Logging Interface Utility, ',VERSION,0x0d,0x0a
+	db	'Message Logging Interface Utility, v',VERSION,0x0d,0x0a
 	CopyrightText
 	db	'$'
 NoDriver:

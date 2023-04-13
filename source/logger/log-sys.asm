@@ -227,8 +227,6 @@ AppendBuffer:
 	pop		di
 	je		.SendTTLBuffer
 	ret
-	; cmp		al, 0x0a		; also send on LF
-	; jne		.AdjustNone
 .SendTTLBuffer:
 	call		SendToLog
 	ret
@@ -558,9 +556,14 @@ DirectCapture:
 	push		ax
 	mov		ax, 0x0040
 	mov		es, ax
+;	mov		al, [0x0050+1]
+;	cmp		ax,  [Header(RowSkip)]
+;	jae		.CursorAboveSkip
+;	cmp		[Header(RowSkip)], ax
+;.CursorAboveSkip:
 	pop		ax
 	test 		ah, ah
-	jz		.SendFull		; .ModeChange
+	jz		.ModeChange
 	cmp		ax, 0x0e0a		; write TTL LF
 	jne		.NotLineFeedTTL
 	test		bh, bh
@@ -605,8 +608,14 @@ DirectCapture:
 	cmp		dh, ch
 	jb		.Done
 	; is full screen clear
-; .ModeChange:
-.SendFull:
+;	call		DirectSendFull
+;	test		cx, cx
+;	jz		.NoLinesSent
+;	dec		cx
+;.NoLinesSent:
+;	mov		[Header(RowSkip)], cx
+;	jmp		.Done
+.ModeChange:
 	call		DirectSendFull
 	mov		[Header(RowSkip)], word 0; reset skip count
 .Done:
@@ -620,9 +629,12 @@ DirectCapture:
 ; -----------------------------------------------------------------------------
 
 DirectSendFull:
-	mov		cl, [es:0x0050 + 1]	; cursor position page 0
-	; Not performing an "INC CL" may cause a line to be skipped. (needs more testing)
-	; inc		cl
+	mov		cx, [es:0x0050]		; cursor position page 0
+	; if cursor not column 0, inc total lines to send
+	xchg		cl, ch
+	test 		ch, ch
+	jz		DirectSendLines
+	inc		cl
 
 DirectSendLines:
 	xor		ch, ch
@@ -971,7 +983,7 @@ Initialize:
 ; .Success:
 
 	PrintStatus	cs
-	PrintMessage	Activated
+	; PrintMessage	Activated
 	%ifdef DEBUG
 		PrintMessage	NewLine
 		PrintMessage 	LoadSeg
@@ -987,7 +999,6 @@ Initialize:
 .Finished:
 	pushf
 	PrintMessage	NewLine
-	int		0x21		; repeat Newline message
 	popf
 
 	; restore additional general registers used during initialization
@@ -1340,7 +1351,7 @@ LoadSeg:
 
 Banner:
 	db	0x0d,0x0a
-	db	'Message Logger, ',VERSION,0x0d,0x0a
+	db	'Message Logger v',VERSION,' ' ; ,0x0d,0x0a
 	CopyrightText
 	db	'$'
 
@@ -1369,11 +1380,11 @@ NotEnoughLOW:
 
 NotActivated:
 	db	'Boot message logging not enabled.$'
-Activated:
-	db	'Boot message logging enabled.$'
+;Activated:
+;	db	'Boot message logging enabled.$'
 
 AlreadyRunning:
-	db	'Logger device drive is already loaded.'
+	db	'Logger device driver is already loaded.$'
 
 NewLine:
 	db 	0x0d,0x0a,'$'
