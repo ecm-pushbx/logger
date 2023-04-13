@@ -128,8 +128,7 @@ DriverFound:
 	; send any standard input text to Log
 	StdIn
 	jc		.NoStdInput
-	or		[Flags], byte ofStdIn
-
+	or		[Flags], byte ofStdIn + ofKeepStatus + ofHadOptions
 
 	mov		ah, COLOR_STDIN
 .LoopStdIn:
