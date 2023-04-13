@@ -87,7 +87,7 @@
 %define MaxXFRSize  80 * 2
 
 ; -----------------------------------------------------------------------------
-%idefine VERSION 'alpha'
+%idefine VERSION 'ALPHA-1'
 
 %imacro CopyrightText 0
 	db	'Copyright (c)', 0x20
