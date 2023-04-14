@@ -37,7 +37,7 @@
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;
-;%define DEBUG
+; %define DEBUG
 
 ; include a debugging data buffer for checking values
 ;
@@ -87,7 +87,7 @@
 %define MaxXFRSize  80 * 2
 
 ; -----------------------------------------------------------------------------
-%idefine VERSION 'ALPHA-2'
+%idefine VERSION 'ALPHA-3'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER

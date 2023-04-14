@@ -494,6 +494,9 @@ LogViewer:
 	dw		.CtrlLeft, 	0x7300		; Ctrl+Left
 	dw		.Right, 	0x4d00		; Right
 	dw		.CtrlRight, 	0x7400		; Ctrl+Left
+	%ifdef DEBUG
+	dw		ViewDebug, 	0x0004		; CTRL+D
+	%endif
 	dw 		0				; end of list
 
 .HomeKey:
@@ -504,8 +507,7 @@ LogViewer:
 	call		PrepareForXMS
 	mov		[Viewer.Flags], byte vfAtTop + vfAtLeftMost + vfAtRightMost
 	mov		[Viewer.LeftOfs], word 0
-	mov		[Viewer.Top], ax
-	mov		[Viewer.Top+2], dx
+
 	jmp		DrawPage
 
 .PgUp:
@@ -537,8 +539,10 @@ LogViewer:
 	; jmp		DrawPage
 	test		[Viewer.Flags], byte vfAtBottom
 	jnz		.Done
-	call		.PgDn
-	jmp		.EndKey
+;	call		.PgDn
+;	jmp		.EndKey
+	call		LastPage
+	jmp		DrawPage
 
 .PgDn:
 	test		[Viewer.Flags], byte vfAtBottom
@@ -588,6 +592,53 @@ LogViewer:
 
 ; -----------------------------------------------------------------------------
 
+%ifdef DEBUG
+ViewDebug:
+	call		ClearScreen
+	call		PrepareForXMS
+	call		FetchXMS
+.Repeating:
+	jc		.Done
+	push		ax
+	push		dx
+	push		bx
+
+;	push		ax
+;	push		dx
+;	WordAsHex	ax
+;	ByteAsChar	' '
+;	pop		dx
+;	pop		ax
+	mov		al, bl
+	mov		ah, 0x0e
+	mov		bl, bh
+	xor		bh, bh
+	int		0x10
+;	ByteAsChar	0x0d,0x0a
+	pop		bx
+	pop		dx
+	pop		ax
+	call		NextXMS
+	jmp		.Repeating
+.DoneMsg:
+	db		'end of log$'
+.Done:
+	pop		cx
+	PrintMessage	.DoneMsg
+.WaitKeyPress:
+	IdleCPU
+	mov		ah, 0x01
+	int		0x16
+	jz		.WaitKeyPress
+	xor		ah, ah
+	int		0x16
+
+	jmp		LogViewer
+
+%endif
+
+; -----------------------------------------------------------------------------
+
 PrevLine:
 	and		[Viewer.Flags], byte ~vfAtBottom
 	mov		ax, [Viewer.Top]
@@ -616,6 +667,8 @@ PrevLine:
 	mov		[Viewer.Top+2], dx
 	ret
 
+; -----------------------------------------------------------------------------
+
 NextLine:
 	and		[Viewer.Flags], byte ~vfAtTop
 	mov		ax, [Viewer.Top]
@@ -638,6 +691,20 @@ NextLine:
 	mov		[Viewer.Top], ax
 	mov		[Viewer.Top+2], dx
 .Failed:
+	ret
+
+; -----------------------------------------------------------------------------
+
+LastPage:
+	mov		ax, [es:Header(XMS.Head)]
+	mov		dx, [es:Header(XMS.Head)+2]
+	; call		PrevXMS
+	mov		[Viewer.Top], ax
+	mov		[Viewer.Top+2], dx
+	mov		cx, [VideoData+TVideoData.Rows]
+.Repeat:
+	call		PrevLine
+	loop		.Repeat
 	ret
 
 ; -----------------------------------------------------------------------------
@@ -811,47 +878,87 @@ DrawPage:
 
 ; -----------------------------------------------------------------------------
 
+NextXMSPos:
+	; Next read position
+	add		ax, 2
+	adc		dx, 0
+
+%ifdef	NO_SPLIT_SEND
+	; test if buffer wrap
+	cmp		ax, [es:Header(XMS.Head)]
+	jne		.CheckTop
+	cmp		dx, [es:Header(XMS.Head)+2]
+	je		.NoNext
+.CheckTop:
+	cmp		dx, [es:Header(XMS.Top)+2]
+	jb		.Probably
+	cmp		ax, [es:Header(XMS.Top)]
+	jb		.Probably
+
+	xor		ax, ax
+	mov		dx, ax
+%else
+	; test if buffer wrap
+	cmp		dx, [es:Header(XMS.Max)+2]
+	jb		.Probably
+	cmp		ax, [es:Header(XMS.Max)]
+	jb		.Probably
+
+	xor		ax, ax
+	mov		dx, ax
+%endif
+	; jmp		.PrintNext
+
+.Probably:
+	; check if finished
+	cmp		ax, [es:Header(XMS.Head)]
+	jne		.HasNext
+	cmp		dx, [es:Header(XMS.Head)+2]
+	jne		.HasNext
+.NoNext:
+	stc
+	ret
+.HasNext:
+	clc
+	ret
+
+; -----------------------------------------------------------------------------
+
 NextXMS:
+
 	push		dx
 	push		ax
 	and		[Viewer.Flags], byte ~vfAtBottom
 
-	%ifdef NO_SPLIT_BUFFER
-		cmpdd		dx, ax, es:Header(XMS.Top)
-	%else
-		cmpdd		dx, ax, es:Header(XMS.Max)
-	%endif
-	jne		.NoWrap
-	xor		ax, ax
-	xor		dx, dx
-	jmp		FetchXMS
-.NoWrap:
 	test		[es:Header(Status)], byte sfInColor
-	jz		.OneByte
+	jnz		.ColorMode
+
+	test		ax, 1
+	jz		.NextIsOdd
+	and		al, 0xfe
+	jmp		.ColorMode
+.NextIsOdd:
 	inc		ax
-	jnz		.OneByte
-	inc		dx
-.OneByte:
-	inc		ax
-	jnz		.Try
-	inc		dx
-.Try:
-	cmpdd		dx, ax, es:Header(XMS.Head)
-	jne		.LooksGood
-	or		[Viewer.Flags], byte vfAtBottom
-	pop		ax
-	pop		dx
-	stc
-	ret
-.LooksGood:
+	jmp		.FetchOdd
+.ColorMode:
+	call		NextXMSPos
+	jc		.Failed
+.FetchOdd:
 	pop 		bx
 	pop		bx
 	jmp		FetchXMS
 
+.Failed:
+	pop		ax
+	pop		dx
+	or		[Viewer.Flags], byte vfAtBottom
+	stc
+	ret
+
 ; -----------------------------------------------------------------------------
 
 PrevXMS:
-	cmpdd		dx, ax, es:Header(XMS.Tail)
+	cmpdd		dx, ax, Viewer.Start
 	jne		.CanDec
 	or		[Viewer.Flags], byte vfAtTop
 	stc
@@ -996,7 +1103,6 @@ ScreenRestore:
 	mov		bh, [VideoData+TVideoData.Page]
 	call		CursorRestore
 	ret
-
 
 ; -----------------------------------------------------------------------------
 
@@ -1269,6 +1375,34 @@ PrepareForXMS:
 	mov		dx, [es:Header(XMS.Tail)+2]
 
 	mov		si, XFR.Count	; set pointer to XFR record
+	; when Log had filled up, skip the first (probably partial) line in Log
+	test 		es:Header(Status), byte sfLogFull
+	jz		.DontSkipPartial
+	call		FetchXMS
+.SkippingToCR:
+	cmp		bl, 0x0d
+	je		.SkippingToLF
+	cmp		bl, 0x0a
+	je		.SkippingLF
+	call		NextXMS
+	jc		.SkipFailed
+	jmp		.SkippingToCR
+.SkippingToLF:
+	call		NextXMS
+	jc		.SkipFailed
+	cmp		bl, 0x0a
+	jne		.DontSkipPartial
+.SkippingLF:
+	call		NextXMS
+	jnc		.DontSkipPartial
+.SkipFailed:
+	; failed somehow, just goto to start of Log
+	call		PrepareForXMS
+.DontSkipPartial:
+	mov		[Viewer.Top], ax
+	mov		[Viewer.Top+2], dx
+	mov		[Viewer.Start], ax
+	mov		[Viewer.Start+2], dx
 	ret
 ; -----------------------------------------------------------------------------
 
@@ -1397,43 +1531,8 @@ PrintLog:
 	pop		ax
 	pop		cx
 
-	; Next read position
-	add		ax, cx
-	adc		dx, 0
-
-%ifdef	NO_SPLIT_SEND
-	; test if buffer wrap
-	cmp		ax, [es:Header(XMS.Head)]
-	jne		.CheckTop
-	cmp		dx, [es:Header(XMS.Head)+2]
-	je		.Done
-.CheckTop:
-	cmp		dx, [es:Header(XMS.Top)+2]
-	jb		.PrintNext
-	cmp		ax, [es:Header(XMS.Top)]
-	jb		.PrintNext
-
-	xor		ax, ax
-	mov		dx, ax
-%else
-	; test if buffer wrap
-	cmp		dx, [es:Header(XMS.Max)+2]
-	jb		.PrintNext
-	cmp		ax, [es:Header(XMS.Max)]
-	jb		.PrintNext
-
-	xor		ax, ax
-	mov		dx, ax
-%endif
-	; jmp		.PrintNext
-
-.PrintNext:
-	; check if finished
-	cmp		ax, [es:Header(XMS.Head)]
-	jne		.MoreData
-	cmp		dx, [es:Header(XMS.Head)+2]
-	jne		.MoreData
-	; finished printing
+	call		NextXMSPos
+	jnc		.MoreData
 	jmp		.Done
 
 .Empty:
@@ -1521,6 +1620,7 @@ Buffer:			resw Buffer_Size; Transfer Buffer
 
 Viewer:
 	.Flags:		resw 1		; Viewer navigation control flags
+	.Start:		resd 1		; First Whole Log Line
 	.Top:		resd 1		; Top line on screen start
 	.Bottom:	resd 1		; End of Bottom line.
 	.LeftOfs:	resw 1		; Start position on lines
