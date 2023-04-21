@@ -75,8 +75,9 @@
 
 ; Select driver searching to use longer slower method. May want to use it
 ; anyway when DEVICE_DRIVER is defined.
-;
-%define SEARCH_LOW
+%ifdef DEVICE_DRIVER
+	%define SEARCH_LOW
+%endif
 
 ; -----------------------------------------------------------------------------
 
@@ -87,7 +88,7 @@
 %define MaxXFRSize  80 * 2
 
 ; -----------------------------------------------------------------------------
-%idefine VERSION 'ALPHA-3'
+%idefine VERSION 'ALPHA-4'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -266,7 +267,7 @@ endstruc
 
 %imacro FindDeviceDriver 0
 ; Not perfect or fast, But good enough for now. There is most likely a far
-; better way to find out if the logging driver is loaded and it's location in
+; better way to find out if the logging driver is loaded and its location in
 ; memory. But after trying a couple different things, I just settled on using
 ; this method. In part, to prevent a potential collision with hooking an
 ; interrupt or other type of probing.
@@ -275,28 +276,24 @@ PROC_FindDeviceDriver:
 
 	mov		dx, ds
 	%ifdef SEARCH_LOW
-		mov		bx, 0x0100
+		mov		bx, 0x0050
 	%else
 		mov		bx, 0xa000
 	%endif
 	cld
 %%Scanning:
-	push		bx
-	pop		es
-	mov		di, 0x09
+	mov		es, bx
+	mov		di, 0x0a ; The Driver ID is at offset 0x0a.
 	%ifdef		DEVICE_DRIVER
 		mov	si, TDriverHeader.Name
 	%else
 		mov	si, DriverID
 	%endif
+
 	mov		cx, DriverIDLength
-%%Comparing:
-	inc		di
-	lodsb
-	cmp		al, [es:di]
+	repe		cmpsb
 	jne		%%Next
-	loop		%%Comparing
-	inc		di
+
 	; matched driver id string
 	; check request pointer and interface pointer segments
 	mov		ax, [es:di]	   ; -1 then driver is not initialized
@@ -322,27 +319,23 @@ PROC_FindDeviceDriver:
 %%Next:
 	inc		bx
 	%ifdef SEARCH_LOW
-		cmp		bx, 0x0100
-		jb		%%Error
+		test		bx, bx
+		jz		%%Error
 		cmp		bx, dx
-		jne		%%Scanning
-		cmp		bx, 0xa000
-		ja		%%Next
-		mov		bx, 0xa000
-		jmp		%%Scanning
+		je		%%Next
 	%else
 		cmp		bx, 0xa000
 		je		%%Error
 		cmp		bx, dx
 		je		%%Next
-		jmp		%%Scanning
 	%endif
+	jmp		%%Scanning
 %%Error:
 	stc
 %%Done:
 	; ax, bx, cx, dx, si, di = undefined
-	; CY Set not found, es = undefined (0xffff)
-	; CY clear driver found, es is segment of driver
+	; CY set if driver was not found, es = undefined
+	; CY clear if driver was found, es is segment of driver
 %endmacro
 
 ; -----------------------------------------------------------------------------
