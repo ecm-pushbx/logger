@@ -73,12 +73,6 @@
 ;
 ; %define LOW_MEM_LOG
 
-; Select driver searching to use longer slower method. May want to use it
-; anyway when DEVICE_DRIVER is defined.
-%ifdef DEVICE_DRIVER
-	%define SEARCH_LOW
-%endif
-
 ; -----------------------------------------------------------------------------
 
 %ifndef	NO_SPLIT_SEND
@@ -275,11 +269,7 @@ endstruc
 PROC_FindDeviceDriver:
 
 	mov		dx, ds
-	%ifdef SEARCH_LOW
-		mov		bx, 0x0050
-	%else
-		mov		bx, 0xa000
-	%endif
+	mov		bx, 0xa000
 	cld
 %%Scanning:
 	mov		es, bx
@@ -318,17 +308,10 @@ PROC_FindDeviceDriver:
 	jmp		%%Done
 %%Next:
 	inc		bx
-	%ifdef SEARCH_LOW
-		test		bx, bx
-		jz		%%Error
-		cmp		bx, dx
-		je		%%Next
-	%else
-		cmp		bx, 0xa000
-		je		%%Error
-		cmp		bx, dx
-		je		%%Next
-	%endif
+	cmp		bx, 0xa000
+	je		%%Error
+	cmp		bx, dx
+	je		%%Next
 	jmp		%%Scanning
 %%Error:
 	stc
