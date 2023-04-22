@@ -76,7 +76,7 @@ istruc TDriverHeader
 	at .Request,		dd -1		; Pointer to tREQUEST block
 
 ; -----------------------------------------------------------------------------
-; Data that may be interacted with directly by the interface program
+; Data that may be interacted with directly by the interface program (for now)
 %ifdef	NO_SPLIT_SEND
 	at .Format,		dw 0		; Record Format Identifier
 %else
@@ -232,7 +232,9 @@ AppendBuffer:
 	ret
 
 ; -----------------------------------------------------------------------------
-; FAR function for external Log interface program.
+; FAR function for external Log interface program. This should go away. It
+; should be replaced with a standard interrupt or function dispatcher call
+; to the logging driver.
 ; -----------------------------------------------------------------------------
 
 FlushFarCall:
@@ -274,7 +276,7 @@ SendToLog:
 
 .TestFull:
 	; test if sfLogJam (stop when full) bit is set (only set by driver when
-	; it is initialized) and if the Log is now Full (always once wraps)
+	; it is initialized) and if the Log is now Full (always once it wraps)
 	test 		[Header(Status)], byte sfLogJam
 	jz		.NeedToSend
 	test 		[Header(Status)], byte sfLogFull
@@ -478,7 +480,8 @@ SendToLog:
 	ret
 
 ; -----------------------------------------------------------------------------
-; If direct video mode not supported, this won't be needed after initialization
+; If direct video mode not supported by the hardware,
+; this won't be needed after initialization
 ; -----------------------------------------------------------------------------
 
 ConfigCapture:
@@ -1158,7 +1161,7 @@ UMB_Thru_XMS:
 	xor		dx, dx
 	mov		bx, 0x0040
 	div		bx			; paragraphs * 16 / 1024 = kb
-	WordAsInt	ax
+	WordAsUInt	ax
 	PrintMessage	UMBKBytes
 	jmp		.UMBFailed
 .NotTooBig:

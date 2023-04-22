@@ -35,6 +35,10 @@
 ; you should probably not change them.
 ; -----------------------------------------------------------------------------
 
+; Device Driver Interrupt Hook method and installation detection
+; %define HOOK_METHOD AMIS
+; %define HOOK_METHOD INT2B
+
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;
 ; %define DEBUG
@@ -74,6 +78,14 @@
 ; %define LOW_MEM_LOG
 
 ; -----------------------------------------------------------------------------
+
+%ifidni HOOK_METHOD, AMIS
+	%include 'hookamis.inc'
+%elifidni HOOK_METHOD, INT2B
+	%include 'hook2b.inc'
+%else
+	%include 'hooknone.inc'
+%endif
 
 %ifndef	NO_SPLIT_SEND
 	%define SPLIT_SEND
@@ -259,70 +271,6 @@ endstruc
 
 ; -----------------------------------------------------------------------------
 
-%imacro FindDeviceDriver 0
-; Not perfect or fast, But good enough for now. There is most likely a far
-; better way to find out if the logging driver is loaded and its location in
-; memory. But after trying a couple different things, I just settled on using
-; this method. In part, to prevent a potential collision with hooking an
-; interrupt or other type of probing.
-
-PROC_FindDeviceDriver:
-
-	mov		dx, ds
-	mov		bx, 0xa000
-	cld
-%%Scanning:
-	mov		es, bx
-	mov		di, 0x0a ; The Driver ID is at offset 0x0a.
-	%ifdef		DEVICE_DRIVER
-		mov	si, TDriverHeader.Name
-	%else
-		mov	si, DriverID
-	%endif
-
-	mov		cx, DriverIDLength
-	repe		cmpsb
-	jne		%%Next
-
-	; matched driver id string
-	; check request pointer and interface pointer segments
-	mov		ax, [es:di]	   ; -1 then driver is not initialized
-	and		ax, [es:di+2]	   ; probably left over memory garbage
-	cmp		ax, -1		   ; and we need to keep looking
-	je		%%Next
-	%ifndef DEVICE_DRIVER
-		; verify driver interface/data record format version
-		%ifdef NO_SPLIT_SEND
-			cmp	[es:di+4], word 0	; has XMS.TOP field
-		%else
-			cmp	[es:di+4], word 1	; does not have XMS.TOP field
-		%endif
-			je	%%Found
-			or	[Flags], byte ofBadVersion
-			jmp	%%Next
-		%%Found:
-			and	[Flags], byte ~ofBadVersion
-	%endif
-
-	clc
-	jmp		%%Done
-%%Next:
-	inc		bx
-	cmp		bx, 0xa000
-	je		%%Error
-	cmp		bx, dx
-	je		%%Next
-	jmp		%%Scanning
-%%Error:
-	stc
-%%Done:
-	; ax, bx, cx, dx, si, di = undefined
-	; CY set if driver was not found, es = undefined
-	; CY clear if driver was found, es is segment of driver
-%endmacro
-
-; -----------------------------------------------------------------------------
-
 %imacro ByteAsChar 1-*
 	%rep %0
 		push	ax
@@ -463,8 +411,8 @@ PROC_WordAsHex:
 
 ; -----------------------------------------------------------------------------
 
-%macro INTERNAL_WordAsInt 0
-PROC_WordAsInt:
+%macro INTERNAL_WordAsUInt 0
+PROC_WordAsUInt:
 	push		ax
 	push		bx
 	push		cx
@@ -495,23 +443,23 @@ PROC_WordAsInt:
 	ret
 %endmacro
 
-%imacro WordAsInt 1
-	%define NEED_WordAsInt
+%imacro WordAsUInt 1
+	%define NEED_WordAsUInt
 	%ifnidni %1, ax
 		push	ax
 		mov	ax, %1
 	%endif
-	call	PROC_WordAsInt
+	call	PROC_WordAsUInt
 	%ifnidni %1, ax
 		pop	ax
 	%endif
 %endmacro
 
-%imacro ByteAsInt 1
+%imacro ByteAsUInt 1
 	push		ax
 	mov		al, %1
 	xor		ah, ah
-	WordAsInt 	ax
+	WordAsUInt 	ax
 	pop		ax
 %endmacro
 
@@ -770,7 +718,7 @@ PROC_ParseOptions:
 	mov		bx, 100
 	mul		bx
 	div		cx
-	WordAsInt	ax
+	WordAsUInt	ax
 	PrintMessage	%%IsPercent
 	jmp		%%And
 %%Empty:
@@ -813,7 +761,7 @@ PROC_ParseOptions:
 			mov	es, %1
 		%endif
 	%endif
-	WordAsInt	[es:TDriverHeader.XMS.Size]
+	WordAsUInt	[es:TDriverHeader.XMS.Size]
 	PrintMessage	%%KB
 	mov		dx, [es:TDriverHeader.XMS.Driver+2]
 	mov		ax, es
@@ -1088,7 +1036,7 @@ PROC_VideoSettings:
 	ConditionalCode	ParseOptions
 	ConditionalCode VideoSettings
 	ConditionalCode StdIn
-	ConditionalCode	WordAsInt
+	ConditionalCode	WordAsUInt
 	ConditionalCode	WordAsHex
 	ConditionalCode	ByteAsHex
 	ConditionalCode	ByteAsBin
