@@ -28,9 +28,13 @@
 
 ; NASM 2.15.05, or later
 
-%imacro FindDeviceDriver 0
+; -----------------------------------------------------------------------------
 
 %warning Using a very slow brute force search to locate driver.
+
+; -----------------------------------------------------------------------------
+
+%imacro FindDeviceDriver 0
 
 ; Not perfect or fast, But good enough for now. There is most likely a far
 ; better way to find out if the logging driver is loaded and its location in
