@@ -1549,8 +1549,12 @@ CommonCode
 
 section .data
 
-DriverID:
-	DeviceDriverID
+%ifidni HOOK_METHOD, AMIS
+	AMIS_Signature
+%else
+	DriverID:
+		DeviceDriverID
+%endif
 
 Banner:
 	db	'Message Logging Interface Utility, v',VERSION,0x0d,0x0a

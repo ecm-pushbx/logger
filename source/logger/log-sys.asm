@@ -115,7 +115,6 @@ istruc TDriverHeader
 %endif
 
 iend
-; -----------------------------------------------------------------------------
 
 %define Header(x) DriverHeader + TDriverHeader. %+ x
 
@@ -125,6 +124,10 @@ BIOSInt10:		dd -1			; Original BIOS Int 10
 
 %ifdef HOOK_METHOD
 	OldIntHook:	dd -1			; Previous interrupt handler
+%endif
+
+%ifidni HOOK_METHOD, AMIS
+	AMIS_Signature
 %endif
 
 ; -----------------------------------------------------------------------------
@@ -1417,3 +1420,8 @@ HadOption:
 	db	0
 LogInUMB:
 	db 	0
+
+%ifidni HOOK_METHOD, AMIS
+AMIS_FREE:
+	db	0
+%endif

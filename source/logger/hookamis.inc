@@ -30,14 +30,78 @@
 
 ; -----------------------------------------------------------------------------
 
-%fatal Using AMIS multiplex protocol for the device driver. (not implemented)
+; %warning Using AMIS multiplex protocol for the device driver.
+
+; -----------------------------------------------------------------------------
+
+struc TAMIS_Signature
+	.Vendor: 	resb 8			; 8 bytes
+	.Product:	resb 8			; 8 bytes
+	%ifdef DEVICE_DRIVER
+		.Description:	resb 15		; could be up to 64 bytes
+		.Multiplexer:	resb 1
+	%endif
+endstruc
+
+; -----------------------------------------------------------------------------
+
+%imacro AMIS_Signature 0
+
+DATA_AMIS_Signature:
+
+istruc TAMIS_Signature
+	at .Vendor,	VendorDriverID
+	at .Product,	DeviceDriverID
+	%ifdef DEVICE_DRIVER
+		at .Description, ProductName
+		at .Multiplexer, db -1
+	%endif
+iend
+
+%define AMIS(x) DATA_AMIS_Signature + TAMIS_Signature. %+ x
+
+%endmacro
 
 ; -----------------------------------------------------------------------------
 
 %imacro FindDeviceDriver 0
 
 PROC_FindDeviceDriver:
+	xor		bx, bx
+%%Scanning:
+	mov		ax, bx
+	push		bx		; just in case. because
+	int		0x2d
+	pop		bx		; ya never know what could be there
+	test		al, al
+	%ifdef DEVICE_DRIVER
+		jnz		%%InUse
+		cmp		[AMIS_FREE], byte 0
+		jne		%%Next
+		mov		[AMIS_FREE], byte 1
+		mov		[AMIS(Multiplexer)], bh
+		jmp		%%Next
+	%else
+		jz		%%Next
+	%endif
+%%InUse:
+	cmp		al, 0xff
+	jne		%%InvalidResponse
+	cld
+	mov		si, DATA_AMIS_Signature
+	mov		es, dx
+	mov		cx, 0x0008		; 16 bytes
+	repe		cmpsw
+	jne		%%Next
+%%Found:
+	clc
+	jmp		%%Done
+%%Next:
+	inc		bh
+	test		bh,bh
+	jnz		%%Scanning
 
+%%InvalidResponse:
 %%NotFound:
 	stc
 
@@ -51,10 +115,48 @@ PROC_FindDeviceDriver:
 ; -----------------------------------------------------------------------------
 
 %imacro DriverInterruptHook 0
+
+PROC_DriverInterruptHook:
+	pushf
+	cmp		ah, [cs:AMIS(Multiplexer)]
+	jne		%%Ignored
+
+	test		al, al
+	jz		%%InstallCheck
+	xor		al,al
+	jmp		%%Respond
+
+%%InstallCheck:
+	mov		al, 0xff
+	mov		cx, VersionID
+	mov		dx, cs
+	mov		di, DATA_AMIS_Signature
+
+%%Respond:
+	popf
+	iret
+
+%%Ignored:
+	popf
+	jmp		far [cs:OldIntHook]
 %endmacro
 
 ; -----------------------------------------------------------------------------
 
 %imacro InstallHook 0
+
+	; Save old int 0x2b
+	push		es
+	mov		ax, 0x352d
+	int		0x21
+	mov		[OldIntHook], bx
+	mov		[OldIntHook+2], es
+	pop		es
+
+	; Install Hook
+	mov		dx, PROC_DriverInterruptHook
+	mov		ax, 0x252d
+	int		0x21
+
 %endmacro
 

@@ -36,8 +36,8 @@
 ; -----------------------------------------------------------------------------
 
 ; Device Driver Interrupt Hook method and installation detection
-; %define HOOK_METHOD AMIS
-%define HOOK_METHOD INT2B
+%define HOOK_METHOD AMIS
+; %define HOOK_METHOD INT2B
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;
@@ -95,7 +95,8 @@
 
 ; -----------------------------------------------------------------------------
 
-%idefine VERSION 'ALPHA-4'
+%idefine VersionID 0x0000
+%idefine Version 'ALPHA-4'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -112,11 +113,11 @@
 	%endif
 %endmacro
 
-%imacro DeviceDriverID 0
-	db 'LOGGERxx'	; 8 character driver name, space padded if needed
-%endmacro
+%idefine VendorDriverID db 'J.SHIDEL'	; 8 character driver vendor
+%idefine DeviceDriverID db 'LOGGERxx'	; 8 character driver name
+%idefine ProductName	db 'Message Logger',0	; ASCIIZ, 64 byte max
 
-%define DriverIDLength 8
+%idefine DriverIDLength 8
 
 ; driver status flags (low byte)
 %idefine sfEnabled 	00000001b	; bit 0 = logging enabled
