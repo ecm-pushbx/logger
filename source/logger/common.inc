@@ -37,7 +37,7 @@
 
 ; Device Driver Interrupt Hook method and installation detection
 ; %define HOOK_METHOD AMIS
-; %define HOOK_METHOD INT2B
+%define HOOK_METHOD INT2B
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;
@@ -94,6 +94,7 @@
 %define MaxXFRSize  80 * 2
 
 ; -----------------------------------------------------------------------------
+
 %idefine VERSION 'ALPHA-4'
 
 %imacro CopyrightText 0

@@ -28,4 +28,33 @@
 
 ; NASM 2.15.05, or later
 
-%fatal Using AMIS multiplex protocol to locate driver has not been implemented.
+; -----------------------------------------------------------------------------
+
+%fatal Using AMIS multiplex protocol for the device driver. (not implemented)
+
+; -----------------------------------------------------------------------------
+
+%imacro FindDeviceDriver 0
+
+PROC_FindDeviceDriver:
+
+%%NotFound:
+	stc
+
+%%Done:
+	; ax, bx, cx, dx, si, di = undefined
+	; CY set if driver was not found, es = undefined
+	; CY clear if driver was found, es is segment of driver
+
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro DriverInterruptHook 0
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro InstallHook 0
+%endmacro
+

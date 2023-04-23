@@ -123,6 +123,10 @@ iend
 
 BIOSInt10:		dd -1			; Original BIOS Int 10
 
+%ifdef HOOK_METHOD
+	OldIntHook:	dd -1			; Previous interrupt handler
+%endif
+
 ; -----------------------------------------------------------------------------
 ; The standard DOS function calls to interact with the driver
 ; -----------------------------------------------------------------------------
@@ -209,6 +213,12 @@ DevInt10:
 	pop		ds
 	popf
 	jmp		far [cs:BIOSInt10]
+
+; -----------------------------------------------------------------------------
+
+%ifdef HOOK_METHOD
+	DriverInterruptHook	; hook2b.inc or hookamis.inc
+%endif
 
 ; -----------------------------------------------------------------------------
 
@@ -982,6 +992,10 @@ Initialize:
 	mov		dx, DevInt10
 	mov		ax, 0x2510
 	int		0x21
+
+%ifdef HOOK_METHOD
+	InstallHook
+%endif
 
 ; .Success:
 

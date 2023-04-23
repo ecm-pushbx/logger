@@ -28,4 +28,104 @@
 
 ; NASM 2.15.05, or later
 
-%fatal Simple interrupt hook 0x2B for locating driver has not been implemented.
+; -----------------------------------------------------------------------------
+
+; %warning Using simple interrupt 0x2B hook for the device driver.
+
+; -----------------------------------------------------------------------------
+
+%imacro FindDeviceDriver 0
+
+PROC_FindDeviceDriver:
+
+	mov	ax, 0xfd00
+	%ifdef		DEVICE_DRIVER
+		mov	bx, TDriverHeader.Name
+	%else
+		mov	bx, DriverID
+	%endif
+	int	0x2b
+	cmp	al, 0xfd
+	jne	%%NotFound
+	mov	es, bx		; driver segment
+	mov	di, TDriverHeader.Name
+	%ifdef		DEVICE_DRIVER
+		mov	si, TDriverHeader.Name
+	%else
+		mov	si, DriverID
+	%endif
+	mov	cx, DriverIDLength / 2
+	cld
+	repe    cmpsw
+	jne	%%NotFound
+	clc
+	jmp	%%Done
+%%NotFound:
+	stc
+%%Done:
+	; ax, bx, cx, dx, si, di = undefined
+	; CY set if driver was not found, es = undefined
+	; CY clear if driver was found, es is segment of driver
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro DriverInterruptHook 0
+
+PROC_DriverInterruptHook:
+	pushf
+	cmp		ax, 0xfd00
+	jne		%%Ignored
+
+
+	push		ds
+	push		es
+	push		si
+	push		di
+	push		cx
+	mov		si, bx		; ds:si -> caller's requested id
+	push		cs
+	pop		es
+	mov		di, TDriverHeader.Name ; es:di -> our ID
+	mov		cx, 0x0004
+	cld
+	repe		cmpsw		; compare the strings
+
+	pop		cx
+	pop		di
+	pop		si
+	pop		es
+	pop		ds
+	jne		%%Ignored
+
+	popf
+
+%%Matched:
+	mov		bx, cs
+	mov		al, 0xfd
+	iret
+
+%%Ignored:
+	popf
+	jmp		far [cs:OldIntHook]
+
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro InstallHook 0
+
+	; Save old int 0x2b
+	push		es
+	mov		ax, 0x352b
+	int		0x21
+	mov		[OldIntHook], bx
+	mov		[OldIntHook+2], es
+	pop		es
+
+	; Install Hook
+	mov		dx, PROC_DriverInterruptHook
+	mov		ax, 0x252b
+	int		0x21
+
+%endmacro
