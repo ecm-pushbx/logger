@@ -30,7 +30,7 @@
 
 ; -----------------------------------------------------------------------------
 
-; %warning No interrupt hook, search device driver chain to locate driver.
+%warning Using a very slow brute force search to locate driver.
 
 ; -----------------------------------------------------------------------------
 
@@ -44,56 +44,51 @@
 
 PROC_FindDeviceDriver:
 
-	mov		ax, 0x3001	; Get DOS Version
-	int		0x21
-	cmp		al, 0x05	; Major version
-	jb		%%Error		; We need at least DOS 2.0. But since
-					; some other code needs DOS 5.0, we
-					; can just fail without DOS 5.0+
-
-%%WalkChain:
-	mov		ah, 0x52	; Get SYSVARS List
-	int		0x21		; es:bx->List
-
-	; NUL is the first driver in the device driver chain
-	; add		bx, 0x17	; offset to NUL device header, DOS 2.0
-	; add		bx, 0x28	; offset to NUL device header, DOS 3.0
-	add		bx, 0x22	; offset to NUL device header, DOS 3.1+
-
-	mov		cx, 1000	; maximum number of chain links to walk
-					; just so we don't somehow get stuck.
-	%ifdef DEVICE_DRIVER
-		mov		dx, cs
-	%endif
+	mov		dx, ds
+	mov		bx, 0xa000
 	cld
-%%NextDriver:
+%%Scanning:
+	mov		es, bx
+	mov		di, 0x0a ; The Driver ID is at offset 0x0a.
 	%ifdef		DEVICE_DRIVER
-		mov	ax, es		; check if this is our segment
-		cmp	dx, ax
-		je	%%Next
-
 		mov	si, TDriverHeader.Name
 	%else
 		mov	si, DriverID
 	%endif
-	mov		di, bx
-	add		di, TDriverHeader.Name
 
-	push		cx
-	mov		cx, 4
-	repe		cmpsw
-	pop		cx
+	mov		cx, DriverIDLength
+	repe		cmpsb
 	jne		%%Next
 
-	CheckCompatible
+	; matched driver id string
+	; check request pointer and interface pointer segments
+	mov		ax, [es:di]	   ; -1 then driver is not initialized
+	and		ax, [es:di+2]	   ; probably left over memory garbage
+	cmp		ax, -1		   ; and we need to keep looking
+	je		%%Next
+	%ifndef DEVICE_DRIVER
+		; verify driver interface/data record format version
+		%ifdef NO_SPLIT_SEND
+			cmp	[es:di+4], word 0	; has XMS.TOP field
+		%else
+			cmp	[es:di+4], word 1	; does not have XMS.TOP field
+		%endif
+			je	%%Found
+			or	[Flags], byte ofBadVersion
+			jmp	%%Next
+		%%Found:
+			and	[Flags], byte ~ofBadVersion
+	%endif
+
+	clc
 	jmp		%%Done
-
 %%Next:
-	les		bx, [es:bx]	; get next driver in chain
-	cmp		bx, -1
+	inc		bx
+	cmp		bx, 0xa000
 	je		%%Error
-	loop		%%NextDriver
-
+	cmp		bx, dx
+	je		%%Next
+	jmp		%%Scanning
 %%Error:
 	stc
 %%Done:

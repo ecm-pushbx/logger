@@ -94,7 +94,7 @@ PROC_FindDeviceDriver:
 	repe		cmpsw
 	jne		%%Next
 %%Found:
-	clc
+	CheckCompatible
 	jmp		%%Done
 %%Next:
 	inc		bh

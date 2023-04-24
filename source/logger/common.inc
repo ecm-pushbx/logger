@@ -36,7 +36,7 @@
 ; -----------------------------------------------------------------------------
 
 ; Device Driver Interrupt Hook method and installation detection
-%define HOOK_METHOD AMIS
+; %define HOOK_METHOD AMIS
 ; %define HOOK_METHOD INT2B
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
@@ -96,7 +96,7 @@
 ; -----------------------------------------------------------------------------
 
 %idefine VersionID 0x0000
-%idefine Version 'ALPHA-4'
+%idefine Version 'ALPHA-5'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -225,6 +225,26 @@ endstruc
 ; -----------------------------------------------------------------------------
 
 %idefine IdleCPU	hlt
+
+; -----------------------------------------------------------------------------
+
+%imacro	CheckCompatible 0
+	%ifdef DEVICE_DRIVER
+		clc
+	%else
+		%ifdef	NO_SPLIT_SEND
+			cmp  [es:TDriverHeader.Format], word 0
+		%else
+			cmp  [es:TDriverHeader.Format], word 1
+		%endif
+			je	%%Compatible
+			stc
+			jmp	%%Done
+		%%Compatible:
+			clc
+		%%Done:
+	%endif
+%endmacro
 
 ; -----------------------------------------------------------------------------
 

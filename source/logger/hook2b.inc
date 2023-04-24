@@ -58,7 +58,7 @@ PROC_FindDeviceDriver:
 	cld
 	repe    cmpsw
 	jne	%%NotFound
-	clc
+	CheckCompatible
 	jmp	%%Done
 %%NotFound:
 	stc
