@@ -50,15 +50,7 @@ PROC_FindDeviceDriver:
 
 	; We need at least DOS 2.0. But since some other code needs DOS 5.0, we
 	; can just fail without DOS 5.0+
-	%ifdef DEVICE_DRIVER
-		; If not DOS 5.0+ say we are already loaded. So, driver will
-		; not stay resident.
-		jae		%%WalkChain
-		clc
-		jmp		%%Done
-	%else
-		jb		%%Error
-	%endif
+	jb		%%Failed
 
 %%WalkChain:
 	mov		ah, 0x52	; Get SYSVARS List
@@ -100,10 +92,18 @@ PROC_FindDeviceDriver:
 %%Next:
 	les		bx, [es:bx]	; get next driver in chain
 	cmp		bx, -1
-	je		%%Error
+	je		%%NotFound
 	loop		%%NextDriver
 
-%%Error:
+%%Failed:
+	%ifdef		DEVICE_DRIVER
+		; if we are a device driver and search fails, pretend we
+		; found a version running to prevent loading.
+		clc
+		jmp		%%Done
+	%endif
+
+%%NotFound:
 	stc
 %%Done:
 	; ax, bx, cx, dx, si, di = undefined
