@@ -44,6 +44,8 @@
 
 PROC_FindDeviceDriver:
 
+	; The DOS 5.x check needs moved to the COM/SYS initialization code
+
 	mov		ax, 0x3001	; Get DOS Version
 	int		0x21
 	cmp		al, 0x05	; Major version

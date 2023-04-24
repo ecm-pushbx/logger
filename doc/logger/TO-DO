@@ -2,17 +2,17 @@ To-Do for initial release:
 
 * Testing
 * Maybe some byte squeezing
+* Move DOS version check to COM/SYS initialization code
 
 Maybe stuff that could be in later releases that should not increase the device
 driver's memory footprint.
 
-* Viewer, jump to end instead of paging down to reach end.
 * HTML formatted log print out.
 * Export log or selection from viewer to file (TEXT, ANSI, HTML).
 * Resize LOG capacity.
 * Force simple capture mode even when Advanced Capture is supported.
 * Enable/Disable Log JAM mode.
-* Single EXE instead of SYS+COM files.
+* Single EXE/COM instead of SYS+COM files.
 * Support for Logging to LOW memory on hardware without XMS, UMB or EMS.
 
 Maybe do in later releases. They would increase the size of device driver. So,
