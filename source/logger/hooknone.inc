@@ -47,9 +47,18 @@ PROC_FindDeviceDriver:
 	mov		ax, 0x3001	; Get DOS Version
 	int		0x21
 	cmp		al, 0x05	; Major version
-	jb		%%Error		; We need at least DOS 2.0. But since
-					; some other code needs DOS 5.0, we
-					; can just fail without DOS 5.0+
+
+	; We need at least DOS 2.0. But since some other code needs DOS 5.0, we
+	; can just fail without DOS 5.0+
+	%ifdef DEVICE_DRIVER
+		; If not DOS 5.0+ say we are already loaded. So, driver will
+		; not stay resident.
+		jae		%%WalkChain
+		clc
+		jmp		%%Done
+	%else
+		jb		%%Error
+	%endif
 
 %%WalkChain:
 	mov		ah, 0x52	; Get SYSVARS List
