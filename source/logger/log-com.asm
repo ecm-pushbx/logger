@@ -50,10 +50,11 @@ section .text
 %define Header(x) TDriverHeader. %+ x
 
 Initialize:
-	push		cs
-	pop		ds
-	push		cs
-	pop		es
+	; ES & DS should already be pointed at CS.
+	; push		cs
+	; pop		ds
+	; push		cs
+	; pop		es
 
 	ParseOptions	OptionTable, 0x81		; cs:OptionTable
 							; es:CommandLine

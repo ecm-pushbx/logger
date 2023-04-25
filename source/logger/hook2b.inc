@@ -73,6 +73,7 @@ PROC_FindDeviceDriver:
 %imacro DriverInterruptHook 0
 
 PROC_DriverInterruptHook:
+	IISP
 	pushf
 	cmp		ax, 0xfd00
 	jne		%%Ignored
@@ -107,7 +108,7 @@ PROC_DriverInterruptHook:
 
 %%Ignored:
 	popf
-	jmp		far [cs:OldIntHook]
+	jmp		far [cs:.NextHandler]
 
 %endmacro
 
@@ -119,8 +120,8 @@ PROC_DriverInterruptHook:
 	push		es
 	mov		ax, 0x352b
 	int		0x21
-	mov		[OldIntHook], bx
-	mov		[OldIntHook+2], es
+	mov		[PROC_DriverInterruptHook.NextHandler], bx
+	mov		[PROC_DriverInterruptHook.NextHandler+2], es
 	pop		es
 
 	; Install Hook

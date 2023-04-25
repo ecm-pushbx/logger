@@ -96,7 +96,7 @@
 ; -----------------------------------------------------------------------------
 
 %idefine VersionID 0x0000
-%idefine Version 'ALPHA-5'
+%idefine Version 'ALPHA-6'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -157,8 +157,6 @@ struc TDriverHeader
 	.Strategy:	resw 1			; set request block pointer
 	.Entry:		resw 1			; driver interrupt call
 	.Name:		resb DriverIDLength	; 8 character driver name
-
-	.Request:	resd 1			; Pointer to tREQUEST block
 
 	.Format:	resw 1			; Record Format Identifier
 
@@ -237,11 +235,9 @@ endstruc
 		%else
 			cmp  [es:TDriverHeader.Format], word 1
 		%endif
-			je	%%Compatible
-			stc
-			jmp	%%Done
-		%%Compatible:
 			clc
+			je	%%Done
+			stc
 		%%Done:
 	%endif
 %endmacro
@@ -289,6 +285,21 @@ endstruc
 	jne	%%Done
 	cmp	%2, [%3]
 %%Done:
+%endmacro
+
+; -----------------------------------------------------------------------------
+
+%imacro IISP 0
+
+.EntryPoint:		jmp	.EndOfHeaderIISP
+.NextHandler:		dd	0		; Next Handler in the chain
+			dw	0x424b		; IISP Signature
+			db	0x00		; EOI Flag
+			jmp	.FarReturnIISP
+			times 7 db 0		; 7 Reserved bytes
+.EndOfHeaderIISP:	jmp	.InterruptHandler
+.FarReturnIISP:		retf
+.InterruptHandler:
 %endmacro
 
 ; -----------------------------------------------------------------------------

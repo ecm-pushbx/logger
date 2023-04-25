@@ -59,19 +59,19 @@ PROC_FindDeviceDriver:
 	mov		cx, DriverIDLength
 	repe		cmpsb
 	jne		%%Next
-
 	; matched driver id string
-	; check request pointer and interface pointer segments
-	mov		ax, [es:di]	   ; -1 then driver is not initialized
-	and		ax, [es:di+2]	   ; probably left over memory garbage
-	cmp		ax, -1		   ; and we need to keep looking
+
+	; check segment of flush pointer is set. If it is not, then it is most
+	; likely RAM garbage fro a file copy or something. So, we will need to
+	; keep looking for the driver.
+	cmp		[es:TDriverHeader.Flush+2], word 0
 	je		%%Next
 	%ifndef DEVICE_DRIVER
 		; verify driver interface/data record format version
 		%ifdef NO_SPLIT_SEND
-			cmp	[es:di+4], word 0	; has XMS.TOP field
+			cmp	[es:TDriverHeader.Format], word 0 ; has XMS.TOP field
 		%else
-			cmp	[es:di+4], word 1	; does not have XMS.TOP field
+			cmp	[es:TDriverHeader.Format], word 1 ; does not have XMS.TOP field
 		%endif
 			je	%%Found
 			or	[Flags], byte ofBadVersion

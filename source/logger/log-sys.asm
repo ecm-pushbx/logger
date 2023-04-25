@@ -64,16 +64,9 @@ DriverHeader:
 istruc TDriverHeader
 	at .ChainNext, 	dd -1			; pointer to next device driver
 	at .Attributes,	dw 0x8000		; character device
-	at .Strategy,	dw Driver.Strategy	; set tREQUEST block pointer
-	at .Entry,	dw Driver.Routine	; driver interrupt call
+	at .Strategy,	dw Initial.Strategy	; set tREQUEST block pointer
+	at .Entry,	dw Initial.Routine	; driver interrupt call
 	at .Name,	DeviceDriverID		; 8 character driver name
-
-; -----------------------------------------------------------------------------
-; In addition to the DeviceDriverID, the pointer is tested by LOG.COM to
-; verify it is actually a running driver and not just as copy of the program
-; residing in memory.
-
-	at .Request,		dd -1		; Pointer to tREQUEST block
 
 ; -----------------------------------------------------------------------------
 ; Data that may be interacted with directly by the interface program (for now)
@@ -120,45 +113,24 @@ iend
 
 ; -----------------------------------------------------------------------------
 
-BIOSInt10:		dd -1			; Original BIOS Int 10
-
-%ifdef HOOK_METHOD
-	OldIntHook:	dd -1			; Previous interrupt handler
-%endif
-
 %ifidni HOOK_METHOD, AMIS
 	AMIS_Signature
 %endif
 
 ; -----------------------------------------------------------------------------
-; The standard DOS function calls to interact with the driver
+; The standard DOS function calls to interact with the driver.
+; Normally, you can save ES:BX when DOS calls the Driver.Strategy function.
+; Then process the contents of that record when DOS calls the Entry routine.
+; However, since the first Entry call is to initialize the driver and no further
+; interaction through those DOS calls is needed or desired, we put that code
+; elsewhere and change those header pointers to this dummy functions that
+; simple return an "unsupported" error code.
 ; -----------------------------------------------------------------------------
 
-Driver.Strategy:				; set request block pointer
-	mov		[cs:Header(Request)], bx
-	mov		[cs:Header(Request)+2], es
-	retf
-
-Driver.Routine:					; driver function dispatcher
-	pushf
-	push		ax
-	push		di
-	push		es
-
-	les		di, [cs:Header(Request)]
-	mov		al, [es:di+tREQUEST.Function]
-	test		al, al			; test command 0, initialize
-	jz		Initialize
-
-Driver.Error:
-	mov		ax, 0x8103		; set error & done bits, and
-						; error code 3, unknown command
-Driver.Return:
-	mov		[es:di+tREQUEST.Status], ax
-	pop		es
-	pop		di
-	pop		ax
-	popf
+Driver.Strategy:
+	; set error & done bits, and error code 3, unknown command
+	mov		[es:bx+tREQUEST.Status], word 0x8103
+Driver.Routine:
 	retf
 
 ; -----------------------------------------------------------------------------
@@ -166,6 +138,7 @@ Driver.Return:
 ; -----------------------------------------------------------------------------
 
 DevInt10:
+	IISP
 	pushf
 	cli
 	push		ds
@@ -215,7 +188,7 @@ DevInt10:
 .Done:
 	pop		ds
 	popf
-	jmp		far [cs:BIOSInt10]
+	jmp		far [cs:.NextHandler]
 
 ; -----------------------------------------------------------------------------
 
@@ -922,6 +895,9 @@ Initialize:
 
 	PrintMessage 	Banner
 
+	mov		[Header(Strategy)], word Driver.Strategy
+	mov		[Header(Entry)], word Driver.Routine
+
 	push		es
 	push		di
 	FindDeviceDriver
@@ -987,8 +963,8 @@ Initialize:
 	push		es
 	mov		ax, 0x3510
 	int		0x21
-	mov		[BIOSInt10], bx
-	mov		[BIOSInt10+2], es
+	mov		[DevInt10.NextHandler], bx
+	mov		[DevInt10.NextHandler+2], es
 	pop		es
 
 	; Install Driver Interrupt 10 handler
@@ -1005,9 +981,9 @@ Initialize:
 	PrintStatus	cs
 	; PrintMessage	Activated
 	%ifdef DEBUG
-		PrintMessage	NewLine
 		PrintMessage 	LoadSeg
 		WordAsHex 	cs
+		PrintMessage	NewLine
 	%endif
 	clc
 	jmp		.Finished
@@ -1017,10 +993,6 @@ Initialize:
 	stc
 
 .Finished:
-	pushf
-	PrintMessage	NewLine
-	popf
-
 	; restore additional general registers used during initialization
 	pop		bx
 	pop		cx
@@ -1029,11 +1001,43 @@ Initialize:
 	pop		ds
 
 	mov		ah, 0x01		; done bit, no error bit
-	jnc		Driver.Return
+	jnc		Initial.Return
 
 	; Free entire device driver by setting pointer to driver start
 	mov		[es:di+tREQUEST.Address], word DriverHeader
-	jmp		Driver.Error
+	jmp		Initial.Error
+
+; -----------------------------------------------------------------------------
+; The initial DOS function calls to interact with the driver, used only during
+; initialization.
+; -----------------------------------------------------------------------------
+
+Initial.Strategy:				; set request block pointer
+	mov		[cs:DriverRequest], bx
+	mov		[cs:DriverRequest+2], es
+	retf
+
+Initial.Routine:					; driver function dispatcher
+	pushf
+	push		ax
+	push		di
+	push		es
+
+	les		di, [cs:DriverRequest]
+	mov		al, [es:di+tREQUEST.Function]
+	test		al, al			; test command 0, initialize
+	jz		Initialize
+
+Initial.Error:
+	mov		ax, 0x8103		; set error & done bits, and
+						; error code 3, unknown command
+Initial.Return:
+	mov		[es:di+tREQUEST.Status], ax
+	pop		es
+	pop		di
+	pop		ax
+	popf
+	retf
 
 ; -----------------------------------------------------------------------------
 
@@ -1399,12 +1403,12 @@ NotEnoughLOW:
 
 
 NotActivated:
-	db	'Boot message logging not enabled.$'
+	db	'Boot message logging not enabled.',0x0a,0x0d,'$'
 ;Activated:
 ;	db	'Boot message logging enabled.$'
 
 AlreadyRunning:
-	db	'Logger device driver is already loaded.$'
+	db	'Logger device driver is already loaded.' ; ,0x0a,0x0d,'$'
 
 NewLine:
 	db 	0x0d,0x0a,'$'
@@ -1425,3 +1429,6 @@ LogInUMB:
 AMIS_FREE:
 	db	0
 %endif
+
+DriverRequest:
+	dd -1		; Pointer to tREQUEST block, for driver initialization.

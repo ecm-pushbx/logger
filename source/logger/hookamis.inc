@@ -37,10 +37,6 @@
 struc TAMIS_Signature
 	.Vendor: 	resb 8			; 8 bytes
 	.Product:	resb 8			; 8 bytes
-	%ifdef DEVICE_DRIVER
-		.Description:	resb 15		; could be up to 64 bytes
-		.Multiplexer:	resb 1
-	%endif
 endstruc
 
 ; -----------------------------------------------------------------------------
@@ -52,13 +48,14 @@ DATA_AMIS_Signature:
 istruc TAMIS_Signature
 	at .Vendor,	VendorDriverID
 	at .Product,	DeviceDriverID
-	%ifdef DEVICE_DRIVER
-		at .Description, ProductName
-		at .Multiplexer, db -1
-	%endif
 iend
 
+%ifdef DEVICE_DRIVER
+	ProductName	; up to 64 bytes
+%endif
+
 %define AMIS(x) DATA_AMIS_Signature + TAMIS_Signature. %+ x
+%define AMIS_Multiplex_ID PROC_DriverInterruptHook.Multiplex_ID
 
 %endmacro
 
@@ -70,16 +67,16 @@ PROC_FindDeviceDriver:
 	xor		bx, bx
 %%Scanning:
 	mov		ax, bx
-	push		bx		; just in case. because
+	; push		bx		; should not need to preserve BX
 	int		0x2d
-	pop		bx		; ya never know what could be there
+	; pop		bx
 	test		al, al
 	%ifdef DEVICE_DRIVER
 		jnz		%%InUse
 		cmp		[AMIS_FREE], byte 0
 		jne		%%Next
 		mov		[AMIS_FREE], byte 1
-		mov		[AMIS(Multiplexer)], bh
+		mov		[AMIS_Multiplex_ID], bh
 		jmp		%%Next
 	%else
 		jz		%%Next
@@ -117,14 +114,16 @@ PROC_FindDeviceDriver:
 %imacro DriverInterruptHook 0
 
 PROC_DriverInterruptHook:
-	pushf
-	cmp		ah, [cs:AMIS(Multiplexer)]
+	IISP
+	cmp		ah, 0
+.Multiplex_ID: 		equ $ - 1
 	jne		%%Ignored
 
 	test		al, al
 	jz		%%InstallCheck
 	xor		al,al
-	jmp		%%Respond
+	;jmp		%%Respond
+	iret
 
 %%InstallCheck:
 	mov		al, 0xff
@@ -133,24 +132,22 @@ PROC_DriverInterruptHook:
 	mov		di, DATA_AMIS_Signature
 
 %%Respond:
-	popf
 	iret
 
 %%Ignored:
-	popf
-	jmp		far [cs:OldIntHook]
+	jmp		far [cs:.NextHandler]
 %endmacro
 
 ; -----------------------------------------------------------------------------
 
 %imacro InstallHook 0
 
-	; Save old int 0x2b
+	; Save old int 0x2d
 	push		es
 	mov		ax, 0x352d
 	int		0x21
-	mov		[OldIntHook], bx
-	mov		[OldIntHook+2], es
+	mov		[PROC_DriverInterruptHook.NextHandler], bx
+	mov		[PROC_DriverInterruptHook.NextHandler+2], es
 	pop		es
 
 	; Install Hook
