@@ -1,7 +1,7 @@
 Begin3
 Title:          Logger
-Version:        ALPHA-5
-Entered-date:   2023-04-24
+Version:        ALPHA-6
+Entered-date:   2023-04-25
 Description:    Message logging system
 Summary:	Device driver and interface program for boot and general message logging.
 Changes:	improved driver detection code

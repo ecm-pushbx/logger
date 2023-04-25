@@ -14,8 +14,8 @@ developer, it may be beneficial to also submit changes to them directly.
 
 <table>
 <tr><td>title</td><td>Logger</td></tr>
-<tr><td>version</td><td>ALPHA-3</td></tr>
-<tr><td>entered&nbsp;date</td><td>2023-04-14</td></tr>
+<tr><td>version</td><td>ALPHA-6</td></tr>
+<tr><td>entered&nbsp;date</td><td>2023-04-25</td></tr>
 <tr><td>description</td><td>Message logging system</td></tr>
 <tr><td>summary</td><td>Device driver and interface program for boot and general message logging.</td></tr>
 <tr><td>keywords</td><td>dos 16 bit, asm, system, boot, device driver, log</td></tr>
