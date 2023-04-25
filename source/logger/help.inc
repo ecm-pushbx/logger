@@ -17,6 +17,5 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	SNAPSHOT	Store a snapshot of the screen in the log.
 	THRU		Log and pass along any redirected standard input text.
 
-
 most options can be abbreviated by using only their first letter (P for PRINT).
 see LOGGER.TXT for more information.

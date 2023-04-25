@@ -180,11 +180,16 @@ DevInt10:
 	jmp		.Done
 
 .CheckModeChange:
+	cmp		ax, 0x4f02		; set vesa mode
+	jne		.NotVESAChange
+	or		[Header(Status)], byte sfVESAChange ; set flag
+	jmp		.ModeChanging
+.NotVESAChange:
 	test		ah, ah
 	jnz		.Done
+.ModeChanging:
 	call		FlushBuffer
 	or		[Header(Status)], byte sfModeChange ; set flag
-
 .Done:
 	pop		ds
 	popf
@@ -479,17 +484,40 @@ ConfigCapture:
 	push		cx
 	push		dx
 
-	; clear ModeChange and DirectMethod bits
+	; clear ModeChange and DirectMethod bits, assume TTL capture mode
 	and		[Header(Status)], byte ~(sfModeChange + sfDirectMode)
 
 	; mov		[Header(XFR.Count)], word 0 ; don't worry about high word
 	mov		[Header(XFR.SrcAddr)], word Header(XFR.Buffer)
 	mov		[Header(XFR.SrcAddr)+2], cs
 
+	; if it was not a VESA mode, check standard modes
+	test		[Header(Status)], byte sfVESAChange
+	jz		.StandardModes
+	and		[Header(Status)], byte ~sfVESAChange ; clear VESA flag
+
+	; Since all the flags are up to date and we are in TTL mode, it should
+	; be safe to call int 10 to fetch the current VESA mode.
+	mov		ax, 0x4f03
+	int 		0x10
+	cmp		ax, 0x004f		; successful and supported
+	jne		.SetMethodDone
+	; Ignore some mode flags that may be in BH
+	and		bh, 00011111b
+	; BX modes 0-0xff are standard modes
+	test		bh, bh
+	jnz		.SetMethodDone
+	mov		ax, 0x0040
+	mov		es, ax
+	mov		al, bl
+	jmp		.CheckMode
+
+.StandardModes:
 	; is it a supported text mode?
 	mov		ax, 0x0040
 	mov		es, ax
 	mov		al, [es:0x0049]		; current video mode
+.CheckMode:
 	and		al, 0x7f
 	mov		bx, 0xb000 		; mono segment
 	cmp		al, 0x07		; is 80x25 mono?

@@ -96,7 +96,7 @@
 ; -----------------------------------------------------------------------------
 
 %idefine VersionID 0x0000
-%idefine Version 'ALPHA-6'
+%idefine Version 'ALPHA-7'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -127,6 +127,7 @@
 %idefine sfInColor	00010000b	; bit 4 = include color attribs in log
 %idefine sfLogJam	00100000b	; bit 5 = stop when full
 %idefine sfLogFull	01000000b	; bit 6 = log full
+%idefine sfVESAChange	10000000b	; bit 7 = VESA Mode change flag
 
 ; interface status and option flags (low byte)
 %idefine ofKeepStatus	00000001b	; bit 0 = restore driver status on exit
