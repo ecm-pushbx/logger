@@ -77,6 +77,9 @@
 ;
 ; %define LOW_MEM_LOG
 
+; HTML output support
+%define HTML_SUPPORT
+
 ; -----------------------------------------------------------------------------
 
 %ifidni HOOK_METHOD, AMIS

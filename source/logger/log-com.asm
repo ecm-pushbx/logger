@@ -217,6 +217,10 @@ OptionTable:
 	db		'PRINT', 0
 	dw		Option_Ansi
 	db	 	'ANSI', 0
+%ifdef HTML_SUPPORT
+	dw		Option_HTML
+	db	 	'HTML', 0
+%endif
 	dw		Option_Msg
 	db	 	'MESSAGE', 0
 	dw		Option_View
@@ -238,6 +242,10 @@ OptionTable:
 	db		'P', 0
 	dw		Option_Ansi
 	db	 	'A', 0
+%ifdef HTML_SUPPORT
+	dw		Option_HTML
+	db	 	'H', 0
+%endif
 	dw		Option_Msg
 	db	 	'M', 0
 	dw		Option_View
@@ -392,6 +400,18 @@ Option_Ansi:
 	pop		es
 	jmp		Option_Done
 
+; -----------------------------------------------------------------------------
+
+%ifdef HTML_SUPPORT
+Option_HTML:
+	test		[Flags], byte ofPreTest
+	jnz		Option_Done
+	push		es
+	mov		es, [DriverSeg]
+	call		PrintHTML
+	pop		es
+	jmp		Option_Done
+%endif
 ; -----------------------------------------------------------------------------
 
 Option_View:
@@ -1421,6 +1441,8 @@ PrintLog:
 	jz		.Empty
 
 	call		PrepareForXMS
+	mov		[LastColor], byte 0x07
+
 .PrintLoop:
 	; maybe add stuff to buffer transfers of entire blocks at one time
 
@@ -1542,6 +1564,9 @@ PrintLog:
 .Done:
 	ret
 
+%ifdef HTML_SUPPORT
+	%include 'out_html.inc'
+%endif
 ; -----------------------------------------------------------------------------
 
 CommonCode

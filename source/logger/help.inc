@@ -6,6 +6,7 @@ LOGGER.COM [ ON | OFF ] [ PRINT | ANSI | VIEW | CLEAR | MESSAGE text ]
 	CLEAR		Empty the log. (leaves logging off)
 	PRINT		Output the log text to STDOUT. (leaves logging off)
 	ANSI		Just like PRINT, but includes ANSI color sequences.
+	HTML		Just like PRINT, but generates very simple HTML.
 
 	VERSION, VER	Display version information.
 	HELP, ?		Display this help text.
