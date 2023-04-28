@@ -70,18 +70,12 @@ istruc TDriverHeader
 
 ; -----------------------------------------------------------------------------
 ; Data that may be interacted with directly by the interface program (for now)
-%ifdef	NO_SPLIT_SEND
-	at .Format,		dw 0		; Record Format Identifier
-%else
 	at .Format,		dw 1		; Record Format Identifier
-%endif
 
 	at .Status,		dw 0		; Device driver Status
 
 	at .Flush,		dd FlushFarCall	; Function to Flush the current
 						; buffer to Log storage.
-
-
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw 32		; Default KB size to allocate
@@ -103,17 +97,13 @@ istruc TDriverHeader
 	at .RowSkip,		dw 0		; Number of rows to skip if
 						; using DirectMode.
 
-%ifdef	NO_SPLIT_SEND
-	at .XMS.Top,		dd 0		; top unused buffer byte
-%endif
-
 iend
 
 %define Header(x) DriverHeader + TDriverHeader. %+ x
 
 ; -----------------------------------------------------------------------------
 
-%ifidni HOOK_METHOD, AMIS
+%ifdef HOOK_AMIS
 	AMIS_Signature
 %endif
 
@@ -197,8 +187,8 @@ DevInt10:
 
 ; -----------------------------------------------------------------------------
 
-%ifdef HOOK_METHOD
-	DriverInterruptHook	; hook2b.inc or hookamis.inc
+%ifdef HOOK_AMIS
+	DriverInterruptHook
 %endif
 
 ; -----------------------------------------------------------------------------
@@ -311,16 +301,6 @@ SendToLog:
 .NoLogJam:
 	; YAY, we are allowed to wrap buffer
 
-%ifdef NO_SPLIT_SEND
-	; move TOP pointer to current HEAD dx:ax
-	mov		[Header(XMS.Top)], ax
-	mov		[Header(XMS.Top)+2], dx
-
-	; move HEAD to buffer origin
-	xor		ax, ax
-	xor		dx, dx
-
-%else
 	; ok we need to split the buffer and send it in two pieces
 
 	; calculate distance from HEAD dx:ax to MAX bx:cx for first send
@@ -358,7 +338,6 @@ SendToLog:
 	pop		bx
 	sub		[Header(XFR.SrcAddr)], bx ; fix send buffer
 	jmp		.SendDone
-%endif
 
 .OkToSend:
 	call		.SendBuffer
@@ -420,16 +399,6 @@ SendToLog:
 	pop		ax
 	jmp		.CheckTop
 .WrapAdjust:
-	; we just buffer wrapped, adjust to TOP old HEAD
-%ifdef NO_SPLIT_SEND
-	push		dx
-	call		.BufferHead
-	mov		[Header(XMS.Top)], ax
-	mov		[Header(XMS.Top)+2], dx
-	pop		dx
-%else
-	; with split buffer, no TOP and MAX never changes
-%endif
 	pop		ax
 	jmp		.PushTail
 
@@ -449,17 +418,6 @@ SendToLog:
 	; set new HEAD from write END bx:cx
 	mov		[Header(XMS.Head)], cx
 	mov		[Header(XMS.Head)+2], bx
-
-%ifdef NO_SPLIT_SEND
-	; if write END > TOP, adjust TOP to write END
-	cmpdd		bx, cx, Header(XMS.Top)
-	jb		.NoAdjustTop
-	mov		[Header(XMS.Top)], cx
-	mov		[Header(XMS.Top)+2], bx
-.NoAdjustTop:
-%else
-	; with split buffer, end cannot be past MAX
-%endif
 
 	; update total byte count written to buffer
 	mov		ax, [si]
@@ -1453,7 +1411,7 @@ HadOption:
 LogInUMB:
 	db 	0
 
-%ifidni HOOK_METHOD, AMIS
+%ifdef HOOK_AMIS
 AMIS_FREE:
 	db	0
 %endif

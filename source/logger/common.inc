@@ -35,9 +35,8 @@
 ; you should probably not change them.
 ; -----------------------------------------------------------------------------
 
-; Device Driver Interrupt Hook method and installation detection
-; %define HOOK_METHOD AMIS
-; %define HOOK_METHOD INT2B
+; Include AMIS interrupt hook support in Device Driver
+; %define HOOK_AMIS
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;
@@ -46,15 +45,6 @@
 ; include a debugging data buffer for checking values
 ;
 ;%define DEBUG_DATA_SIZE	8	; debug data words, size is words * 2
-
-; disable splitting the send buffer when wrapping writes around in the LOG
-; storage. This will include a TOP value in the device header and requires both
-; the device driver and interface program to be compiled accordingly. NON-split
-; sending was just an experiment to see if it reduced code size. But as it
-; turned out, the monitoring and updating of the the additional variables
-; required a couple more bytes of code than just splitting the send buffer.
-;
-; %define NO_SPLIT_SEND
 
 ; Noticed some weirdness when using Direct Capture in 40 column modes under
 ; VirtualBox. There may also be issues on real hardware or other Virtual
@@ -82,16 +72,10 @@
 
 ; -----------------------------------------------------------------------------
 
-%ifidni HOOK_METHOD, AMIS
+%ifdef HOOK_AMIS
 	%include 'hookamis.inc'
-%elifidni HOOK_METHOD, INT2B
-	%include 'hook2b.inc'
 %else
 	%include 'hooknone.inc'
-%endif
-
-%ifndef	NO_SPLIT_SEND
-	%define SPLIT_SEND
 %endif
 
 %define MaxXFRSize  80 * 2
@@ -99,7 +83,7 @@
 ; -----------------------------------------------------------------------------
 
 %idefine VersionID 0x0000
-%idefine Version 'ALPHA-7'
+%idefine Version 'ALPHA-8'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -186,10 +170,6 @@ struc TDriverHeader
 	.RowSkip:	resw 1			; Number of rows to skip if
 						; using DirectMode.
 
-%ifdef	NO_SPLIT_SEND				; top unused buffer byte
-	.XMS.Top:	resd 1			; to prevent split send buffer
-%endif						; wrapping, only whole sends
-
 %ifdef DEBUG_DATA_SIZE
 	.DebugData:	resw DEBUG_DATA_SIZE
 %endif
@@ -234,15 +214,11 @@ endstruc
 	%ifdef DEVICE_DRIVER
 		clc
 	%else
-		%ifdef	NO_SPLIT_SEND
-			cmp  [es:TDriverHeader.Format], word 0
-		%else
-			cmp  [es:TDriverHeader.Format], word 1
-		%endif
-			clc
-			je	%%Done
-			stc
-		%%Done:
+		cmp  [es:TDriverHeader.Format], word 1
+		clc
+		je	%%Done
+		stc
+	%%Done:
 	%endif
 %endmacro
 
@@ -889,11 +865,6 @@ PROC_ParseOptions:
 	PrintMessage 	%%PreXMSMax
 	WordAsHex 	[es:TDriverHeader.XMS.Max+2], [es:TDriverHeader.XMS.Max]
 	PrintMessage 	%%EOL
-%ifdef	NO_SPLIT_SEND				; top unused buffer byte
-	PrintMessage 	%%PreXMSTop
-	WordAsHex 	[es:TDriverHeader.XMS.Top+2], [es:TDriverHeader.XMS.Top]
-	PrintMessage 	%%EOL
-%endif						; wrapping, only whole sends
 	PrintMessage 	%%PreXMSCount
 	WordAsHex 	[es:TDriverHeader.XMS.Count+2], [es:TDriverHeader.XMS.Count]
 	PrintMessage 	%%EOL

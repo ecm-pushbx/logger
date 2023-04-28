@@ -358,10 +358,6 @@ Option_Clear:
 	mov		[es:Header(XMS.Count)+2], ax	; 0
 	mov		[es:Header(XMS.Head)], ax	; 0
 	mov		[es:Header(XMS.Head)+2], ax	; 0
-	%ifdef	NO_SPLIT_SEND
-		mov		[es:Header(XMS.Top)], ax	; 0
-		mov		[es:Header(XMS.Top)+2], ax	; 0
-	%endif
 	%ifdef  DEBUG_DATA_SIZE
 		mov		cx, DEBUG_DATA_SIZE
 		xor		bx, bx
@@ -904,21 +900,6 @@ NextXMSPos:
 	add		ax, 2
 	adc		dx, 0
 
-%ifdef	NO_SPLIT_SEND
-	; test if buffer wrap
-	cmp		ax, [es:Header(XMS.Head)]
-	jne		.CheckTop
-	cmp		dx, [es:Header(XMS.Head)+2]
-	je		.NoNext
-.CheckTop:
-	cmp		dx, [es:Header(XMS.Top)+2]
-	jb		.Probably
-	cmp		ax, [es:Header(XMS.Top)]
-	jb		.Probably
-
-	xor		ax, ax
-	mov		dx, ax
-%else
 	; test if buffer wrap
 	cmp		dx, [es:Header(XMS.Max)+2]
 	jb		.Probably
@@ -927,7 +908,6 @@ NextXMSPos:
 
 	xor		ax, ax
 	mov		dx, ax
-%endif
 	; jmp		.PrintNext
 
 .Probably:
@@ -990,13 +970,8 @@ PrevXMS:
 	or		bx, ax
 	test		bx, bx
 	jnz		.NoWrap
-	%ifdef NO_SPLIT_BUFFER
-		mov	ax, [es:Header(XMS.Top)]
-		mov	dx, [es:Header(XMS.Top)+2]
-	%else
-		mov	ax, [es:Header(XMS.Max)]
-		mov	dx, [es:Header(XMS.Max)+2]
-	%endif
+	mov		ax, [es:Header(XMS.Max)]
+	mov		dx, [es:Header(XMS.Max)+2]
 	jmp		.TwoBytes
 .NoWrap:
 	test		[es:Header(Status)], byte sfInColor
@@ -1575,7 +1550,7 @@ CommonCode
 
 section .data
 
-%ifidni HOOK_METHOD, AMIS
+%ifdef HOOK_AMIS
 	AMIS_Signature
 %else
 	DriverID:
