@@ -137,9 +137,9 @@ struc TDriverHeader
 	.Entry:		resw 1			; driver interrupt call
 	.Name:		resb DriverIDLength	; 8 character driver name
 
-	.Status:	resw 1			; Device driver Status
+	.Dispatch:	resd 1			; far call to driver functions
 
-	.Flush		resd 1			; far call to flush send buffer
+	.Status:	resw 1			; Device driver Status
 
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
 	.XMS.Size:	resw 1			; Size in KB to allocate
