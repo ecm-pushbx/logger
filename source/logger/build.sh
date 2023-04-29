@@ -66,14 +66,14 @@ function die () {
 function build () {
 
 	local s="${1}"
-	local e="$(upperCase ${2})"
+	local e="$(upperCase ${2##*.})"
 	local n="${s##*/}"
 	n="${n%.*}"
-	local o="$(upperCase ${n}.${e})"
-	[[ "${2/.}" != "${2}" ]] && o="$(upperCase ${2})"
-	echo "Building ${n}......"
+	local o="$(upperCase ${2})"
+	shift 2
+	echo "Building ${n}......${e}"
 	[[ -f "${o}" ]] && rm "${o}"
-	nasm -s "${s}" -ILIBS/ -fbin ${OPTIMIZE} -o "${o}" || die "${n}"
+	nasm -s "${s}" -ILIBS/ -fbin ${OPTIMIZE} ${@} -o "${o}" || die "${n}"
 	if [ ! -f  "${o}" ] ; then
 		die "${n}"
 	fi
@@ -86,6 +86,8 @@ function build () {
 		fi
 		cp "${o}" "../../BIN/${o}"
 		ls -al "../../BIN/${o}"
+	else
+		ls -al "${o}"
 	fi
 }
 
@@ -98,11 +100,18 @@ function build_main () {
 
 	echo "WARNING: NASM 2.15.05, or later is recommended for compilation."
 
-	local i
-	build "log-com.asm" 'logger.com'
-	build "log-sys.asm" 'logger.sys'
+	if [[ "${1}" == 'single' ]] ; then
+		rm ../../BIN/*.SYS >/dev/null 2>&1
+		rm *.SYS >/dev/null 2>&1
+		build "log-drvr.asm" 'logger.bin' -DSINGLE_BINARY
+		build "log-intf.asm" 'logger.com' -DSINGLE_BINARY
+	else
+		rm *.BIN >/dev/null 2>&1
+		build "log-drvr.asm" 'logger.sys'
+		build "log-intf.asm" 'logger.com'
+	fi
 
 	echo "$(wct -l) lines of source code ($(( $(wct -c) / 1024 )) kbytes)"
 }
 
-build_main
+build_main $@

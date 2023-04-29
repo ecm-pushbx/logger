@@ -62,7 +62,12 @@ endstruc
 
 DriverHeader:
 istruc TDriverHeader
-	at .ChainNext, 	dd -1			; pointer to next device driver
+	%ifdef SINGLE_BINARY
+		at .ChainNext,  jmp near SkipDriver	; one binary jump past
+							; driver to interface
+	%else
+		at .ChainNext, 	dd -1		; pointer to next device driver
+	%endif
 	at .Attributes,	dw 0x8000		; character device
 	at .Strategy,	dw Initial.Strategy	; set tREQUEST block pointer
 	at .Entry,	dw Initial.Routine	; driver interrupt call
@@ -692,7 +697,7 @@ DirectSendRow:
 	mov		bx, 0x0720		; blank space
 	std
 %ifdef DIRECT_SEND
-	%fatal 	Need to send entire color line to log at once
+	%fatal 	Ability to send entire color line to log at once, not implemented.
 %else
 	test		[Header(Status)], byte sfInColor
 	jnz		.ColorCount
@@ -883,6 +888,12 @@ Initialize:
 
 	mov		[Header(Strategy)], word Driver.Strategy
 	mov		[Header(Entry)], word Driver.Routine
+
+	%ifdef SINGLE_BINARY
+		mov		ax, -1
+		mov		[Header(ChainNext)], ax
+		mov		[Header(ChainNext)+2], ax
+	%endif
 
 	push		es
 	push		di
@@ -1418,3 +1429,7 @@ AMIS_FREE:
 
 DriverRequest:
 	dd -1		; Pointer to tREQUEST block, for driver initialization.
+
+%ifdef SINGLE_BINARY
+SkipDriver:
+%endif

@@ -53,15 +53,6 @@
 ;
 ; %define DIRECT_40_COLUMNS
 
-; There may or may not be a noticeable performance difference between sending
-; the entire DirectMode text to memory as a single block directly. Currently,
-; it is cached in the send buffer, then sent to Log storage. Eventually the
-; "DIRECT_SEND" directive will switch to sending video memory to the log when
-; in a supported mode and color logging is enabled. But, increases the driver
-; footprint and may not be worth the extra bytes.
-;
-; %define DIRECT_SEND
-
 ; Do not enable, only works under FreeDOS when Driver is loaded in UMB.
 ; otherwise, system is very unstable if it boots at all.
 ;

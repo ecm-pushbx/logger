@@ -30,10 +30,6 @@
 
 ; -----------------------------------------------------------------------------
 
-; %warning No interrupt hook, search device driver chain to locate driver.
-
-; -----------------------------------------------------------------------------
-
 PrintHTML:
 	mov		[LastColor], byte 0x07
 	mov		[BackSpan], byte 0x0
@@ -223,7 +219,6 @@ PrintHTML:
 BackSpan:	db 0
 ForeSpan:	db 0
 
-
 HTML.HEADER:
 	db '<html>'
 	db '<style>'
@@ -264,7 +259,7 @@ HTML.HEADER:
 	db '.b13{background:#a0a;}'
 	db '.b14{background:#a50;}'
 	db '.b15{background:#aaa;}'
-	db '</style>'
+	db '</style>',0x0d,0x0a
 	db '<body>'
 	db '<div class="logger-outer"><div class="logger-inner">$'
 HTML.FOOTER:
