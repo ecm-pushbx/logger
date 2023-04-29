@@ -74,12 +74,12 @@ istruc TDriverHeader
 	at .Name,	DeviceDriverID		; 8 character driver name
 
 ; -----------------------------------------------------------------------------
-; Data that may be interacted with directly by the interface program (for now)
+
+	at .Dispatch,		dd Dispatcher	; far call to driver functions
+
+; -----------------------------------------------------------------------------
 
 	at .Status,		dw 0		; Device driver Status
-
-	at .Flush,		dd FlushFarCall	; Function to Flush the current
-						; buffer to Log storage.
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Size,		dw 32		; Default KB size to allocate
@@ -190,6 +190,123 @@ DevInt10:
 	jmp		far [cs:.NextHandler]
 
 ; -----------------------------------------------------------------------------
+; Far call to driver function dispatcher.
+; -----------------------------------------------------------------------------
+
+Dispatcher:
+	push		ds
+	push		cs
+	pop		ds
+
+	push		bp		; driver does not use BP except to
+	mov		bp, bx		; preserve bx for dispatcher calls
+
+	mov		bl, al
+	sub		bl, 0x10	; functions start at AL=0x10 for
+					; simpler compatibility with AMIS.
+					; AMIS specific functions will be
+					; handled by the AMIS Hook itself.
+
+	cmp		bl, (.FunEnd - .FunTable) / 2
+	jb		.ValidFun
+	stc
+	xor		al,al
+	jmp		.Finished
+.ValidFun:
+	xor		bh, bh
+	add		bx, bx
+	clc
+	mov		al,0xff
+	pushf
+	call		near [cs:bx+.FunTable]
+	popf
+.Finished:
+	mov		bx, bp
+	pop		bp
+
+	pop		ds
+	retf
+
+.FunTable:
+	dw		.Status		; fn 0x10
+	dw		.SetEnabled	; fn 0x11
+	dw		.Flush		; fn 0x12
+	dw		.Clear		; fn 0x13
+	dw		.AppendChar	; fn 0x14
+;	dw		.AppendText	; needs 24 bytes, maybe I'll include it.
+.FunEnd:
+
+.Status:
+	; fn 0x10, returns current status in bx
+	mov		bx, [Header(Status)]
+	ret
+
+.SetEnabled:
+	; fn 0x11, BL=0 off/1 on
+	mov		bx, bp
+	and		bl, sfEnabled
+	and		[Header(Status)], byte ~sfEnabled
+	or		[Header(Status)], bl
+	ret
+
+.Flush:
+	; fn 0x12
+	call		FlushBuffer
+	ret
+
+.Clear:
+	; fn 0x13
+	push		ax
+	and		[Header(Status)], byte ~sfLogFull
+	xor		ax, ax
+	mov		[Header(XMS.Count)], ax	; 0
+	mov		[Header(XMS.Count)+2], ax	; 0
+	mov		[Header(XMS.Head)], ax	; 0
+	mov		[Header(XMS.Head)+2], ax	; 0
+	%ifdef  DEBUG_DATA_SIZE
+		push		cx
+		mov		cx, DEBUG_DATA_SIZE
+		xor		bx, bx
+	.ClearDebug:
+		mov		[Header(DebugData)+bx], ax
+		add		bx, 2
+		loop		.ClearDebug
+		pop		cx
+	%endif
+	dec		ax
+	mov		[Header(XMS.Tail)], ax		; -1
+	mov		[Header(XMS.Tail)+2], ax	; -1
+	pop		ax
+	ret
+
+.AppendChar:
+	; fn 0x14, BH = Attribute, BL = Character
+	push		ax
+	mov		bx, bp
+	mov		al, bl
+	mov		bl, bh
+	call		AppendBuffer
+	pop		ax
+	ret
+
+;.AppendText:
+;	; fn 0x15; es:di->AsciiZ, bh=attribute
+;	push		ax
+;	push		di
+;	mov		bl, bh
+;.AppendTextLoop:
+;	mov		al, [es:di]
+;	test		al, al
+;	jz		.AppendTextDone
+;	inc		di
+;	call		AppendBuffer
+;	jmp		.AppendTextLoop
+;.AppendTextDone:
+;	pop		di
+;	pop		ax
+;	ret
+
+; -----------------------------------------------------------------------------
 
 %ifdef HOOK_AMIS
 	DriverInterruptHook
@@ -215,24 +332,6 @@ AppendBuffer:
 .SendTTLBuffer:
 	call		SendToLog
 	ret
-
-; -----------------------------------------------------------------------------
-; FAR function for external Log interface program. This should go away. It
-; should be replaced with a standard interrupt or function dispatcher call
-; to the logging driver.
-; -----------------------------------------------------------------------------
-
-FlushFarCall:
-	; far call to send buffer contents to Log storage. It is not effected
-	; by driver enabled state.
-	pushf
-	push		ds
-	push		cs
-	pop		ds
-	call		FlushBuffer
-	pop		ds
-	popf
-	retf
 
 ; -----------------------------------------------------------------------------
 ; Buffer Flush routine that insures all data stored in the buffer or not yet
@@ -464,7 +563,7 @@ ConfigCapture:
 	int 		0x10
 	cmp		ax, 0x004f		; successful and supported
 	jne		.SetMethodDone
-	; Ignore some mode flags that may be in BH
+	; Ignore some VESA mode flags that may be in BH
 	and		bh, 00011111b
 	; BX modes 0-0xff are standard modes
 	test		bh, bh
@@ -905,7 +1004,7 @@ Initialize:
 	jmp		.Finished
 .NotLoaded:
 
-	mov		[Header(Flush)+2], cs; set far call segment for Flush
+	mov		[Header(Dispatch)+2], cs; set far call segment for Flush
 	push		es
 	push		di
 
@@ -968,7 +1067,7 @@ Initialize:
 	mov		ax, 0x2510
 	int		0x21
 
-%ifdef HOOK_METHOD
+%ifdef HOOK_AMIS
 	InstallHook
 %endif
 

@@ -36,7 +36,7 @@
 ; -----------------------------------------------------------------------------
 
 ; Include AMIS interrupt hook support in Device Driver
-; %define HOOK_AMIS
+%define HOOK_AMIS
 
 ; include some debugging code and the DEBUG option in LOGGER.COM
 ;
@@ -73,8 +73,8 @@
 
 ; -----------------------------------------------------------------------------
 
-%idefine VersionID 0x0000
-%idefine Version 'ALPHA-8'
+%idefine VersionID 0x0001	; High byte = Major, Low Byte = Minor
+%idefine Version '0.1-BETA'
 
 %imacro CopyrightText 0
 	%ifndef DEVICE_DRIVER
@@ -100,14 +100,16 @@
 ; driver status flags (low byte)
 %idefine sfEnabled 	00000001b	; bit 0 = logging enabled
 %idefine sfModeChange	00000010b	; bit 1 = mode changed, re-config driver
-%idefine sfDirectMode	00000100b	; bit 2 = advanced capture mode
-%idefine sfSupport	00001000b	; bit 3 = card supports advanced mode
-%idefine sfInColor	00010000b	; bit 4 = include color attribs in log
-%idefine sfLogJam	00100000b	; bit 5 = stop when full
-%idefine sfLogFull	01000000b	; bit 6 = log full
-%idefine sfVESAChange	10000000b	; bit 7 = VESA Mode change flag
+%idefine sfVESAChange	00000100b	; bit 2 = VESA Mode change flag
+%idefine sfDirectMode	00001000b	; bit 3 = advanced capture mode active
+%idefine sfSupport	00010000b	; bit 4 = card supports advanced mode
+%idefine sfInColor	00100000b	; bit 5 = include color attribs in log
+%idefine sfLogJam	01000000b	; bit 6 = stop when full
+%idefine sfLogFull	10000000b	; bit 7 = log full
+; driver status flags (high byte) 	  bits 8-15 reserved
 
-; interface status and option flags (low byte)
+
+; interface status and option flags (low byte) - internal use only
 %idefine ofKeepStatus	00000001b	; bit 0 = restore driver status on exit
 %idefine ofHadOptions	00000010b	; bit 1 = command line options provided
 %idefine ofColorPrint	00000100b	; bit 2 = MONO/ANSI printing selected
@@ -116,11 +118,12 @@
 %idefine ofStdIn	00100000b	; bit 5 = standard input added to log
 %idefine ofBadVersion   01000000b	; bit 6 = incompatible driver version
 %idefine ofPreTest	10000000b	; bit 7 = CmdLn Option Pre-Check
-; interface status and option flags (high byte)
+; interface status and option flags (high byte)  - internal use only
 %idefine ofPassThru	00000001b	; bit 8 = also send any STDIN to STDOUT
 %idefine ofHushMode	00000010b	; bit 9 = do not warn about no driver
 
-; interface viewer navigation control flags (low byte)
+
+; interface viewer navigation control flags (low byte)  - internal use only
 %idefine vfAtTop	00000001b	; bit 0 = can not scroll up
 %idefine vfAtBottom     00000010b	; bit 1 = can not scroll down
 %idefine vfAtLeftmost   00000100b	; bit 2 = can not scroll left
@@ -138,8 +141,8 @@ struc TDriverHeader
 	.Name:		resb DriverIDLength	; 8 character driver name
 
 	.Dispatch:	resd 1			; far call to driver functions
-
 	.Status:	resw 1			; Device driver Status
+
 
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
 	.XMS.Size:	resw 1			; Size in KB to allocate

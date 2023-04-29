@@ -121,21 +121,49 @@ PROC_DriverInterruptHook:
 
 	test		al, al
 	jz		%%InstallCheck
-	xor		al,al
-	;jmp		%%Respond
+	cmp		al, 0x02
+	je		%%Uninstall
+	jb		%%PrivateEntry
+	cmp		al, 0x04
+	je		%%InterruptList
+	cmp		al, 0x06
+	je		%%GetDriverInfo
+	jmp		Dispatcher
+
+%%GetDriverInfo:
+	xor		ah, ah 		; loaded in config sys, cannot remove
+	xor		bx, bx		; dx:bx -> first driver header
+	jmp		%%Respond	; ah != 0
+
+%%InterruptList:
+	mov		dx, cs
+	mov		bx, %%HookedList
 	iret
 
-%%InstallCheck:
-	mov		al, 0xff
-	mov		cx, VersionID
-	mov		dx, cs
-	mov		di, DATA_AMIS_Signature
+%%Uninstall:
+	mov		al, 0x06 ; cannot remove, loaded in config.sys
+	iret
 
+%%PrivateEntry:
+	mov		bx, [cs:TDriverHeader.Dispatch]
+	jmp		%%Respond
+%%InstallCheck:
+	mov		cx, VersionID
+	mov		di, DATA_AMIS_Signature
 %%Respond:
+	mov		dx, cs
+	mov		al, 0xff
 	iret
 
 %%Ignored:
 	jmp		far [cs:.NextHandler]
+
+%%HookedList:
+	db		0x10
+	dw		DevInt10
+	db		0x2d
+	dw		PROC_DriverInterruptHook
+
 %endmacro
 
 ; -----------------------------------------------------------------------------

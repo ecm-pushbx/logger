@@ -92,7 +92,7 @@ SnapShot:
 
 	call		.SnapEnd
 
-	call		FlushBuffer
+	call		DriverFlush
 
 	; restore cursor position for page
 	call		CursorRestore

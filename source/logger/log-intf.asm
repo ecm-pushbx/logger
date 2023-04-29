@@ -116,7 +116,7 @@ DriverFound:
 	mov		[OrgStat], ax
 
 	; make sure buffer contents have been written.
-	call		far [es:Header(Flush)]
+	call		DriverFlush
 
 	; disable driver
 	and		al , ~sfEnabled
@@ -144,7 +144,7 @@ DriverFound:
 	call		AppendBuffer
 	StdIn
 	jnc		.LoopStdIn
-	call		far [es:Header(Flush)]
+	call		DriverFlush
 
 .NoStdInput:
 
@@ -200,6 +200,37 @@ ExitNoError:
 	; Terminate, no error
 	mov		ax, 0x4c00
 	int 		0x21
+
+; -----------------------------------------------------------------------------
+
+;DriverStatus:
+;	push		es
+;	mov		al, 0x10		; return current status in BX
+;	mov		es, [DriverSeg]
+;	call		far [es:Header(Dispatch)]
+;	pop		es
+;	ret
+
+DriverFlush:
+	push		es
+	push		ax
+	mov		al, 0x12
+	mov		es, [DriverSeg]
+	call		far [es:Header(Dispatch)]
+	pop		ax
+	pop		es
+	ret
+
+DriverClear:
+	push		es
+	push		ax
+	mov		al, 0x13
+	mov		es, [DriverSeg]
+	call		far [es:Header(Dispatch)]
+	and		[OrgStat], byte ~sfLogFull
+	pop		ax
+	pop		es
+	ret
 
 ; -----------------------------------------------------------------------------
 
@@ -349,33 +380,8 @@ Option_On:
 Option_Clear:
 	test		[Flags], byte ofPreTest
 	jnz		Option_Done
-	; reset logging buffer to clear it
-	push		es
-	mov		es, [DriverSeg]
-	; reset log buffer control data
-	mov		al, [OrgStat]
-	and		al, ~sfLogFull
-	mov		[es:Header(Status)], al ; clear sfLogFull bit
-	mov		[OrgStat], al		; update original state
-	xor		ax, ax
-	mov		[es:Header(XMS.Count)], ax	; 0
-	mov		[es:Header(XMS.Count)+2], ax	; 0
-	mov		[es:Header(XMS.Head)], ax	; 0
-	mov		[es:Header(XMS.Head)+2], ax	; 0
-	%ifdef  DEBUG_DATA_SIZE
-		mov		cx, DEBUG_DATA_SIZE
-		xor		bx, bx
-	.ClearDebug:
-		mov		[es:Header(DebugData)+bx], ax
-		add		bx, 2
-		loop		.ClearDebug
-	%endif
-	dec		ax
-	mov		[es:Header(XMS.Tail)], ax	; -1
-	mov		[es:Header(XMS.Tail)+2], ax	; -1
-	pop		es
+	call		DriverClear
 	jmp		Option_Done
-
 ; -----------------------------------------------------------------------------
 
 Option_Print:
@@ -452,10 +458,8 @@ Option_Snapshot:
 Option_Msg:
 	test		[Flags], byte ofPreTest
 	jnz		Option_IgnoreRest
-	; pushf		; shouldn't need this
-	; cli
 	or		[Flags], byte ofKeepStatus
-	call		FlushBuffer  ; should already be empty, but won't hurt
+	call		DriverFlush ; should already be empty, but won't hurt
 	cld
 	mov		ah, COLOR_MESSAGE
 	jmp		.SkipIndent
@@ -477,9 +481,8 @@ Option_Msg:
 	mov		al, 0x0a
 	call		AppendBuffer
 .SkipLF:
-	call		FlushBuffer
+	call		DriverFlush
 .Done:
-	; popf
 	jmp		Option_Done
 
 ; -----------------------------------------------------------------------------
@@ -594,21 +597,11 @@ AppendBuffer:
 	mov		[es:Header(XFR.Count)], di
 	cmp		di, MaxXFRSize		; send if TTL buffer is full
 	jne		.Done
-	call		FlushBuffer
+	call		DriverFlush
 .Done:
 	pop		di
 	pop		es
 	ret
-
-; -----------------------------------------------------------------------------
-
-FlushBuffer:
-	push		es
-	mov		es, [DriverSeg]
-	call		far [es:Header(Flush)]
-	pop		es
-	ret
-
 
 ; -----------------------------------------------------------------------------
 
