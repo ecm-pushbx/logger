@@ -75,7 +75,6 @@ istruc TDriverHeader
 
 ; -----------------------------------------------------------------------------
 ; Data that may be interacted with directly by the interface program (for now)
-	at .Format,		dw 1		; Record Format Identifier
 
 	at .Status,		dw 0		; Device driver Status
 

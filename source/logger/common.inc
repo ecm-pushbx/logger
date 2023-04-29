@@ -137,8 +137,6 @@ struc TDriverHeader
 	.Entry:		resw 1			; driver interrupt call
 	.Name:		resb DriverIDLength	; 8 character driver name
 
-	.Format:	resw 1			; Record Format Identifier
-
 	.Status:	resw 1			; Device driver Status
 
 	.Flush		resd 1			; far call to flush send buffer
@@ -205,11 +203,7 @@ endstruc
 	%ifdef DEVICE_DRIVER
 		clc
 	%else
-		cmp  [es:TDriverHeader.Format], word 1
 		clc
-		je	%%Done
-		stc
-	%%Done:
 	%endif
 %endmacro
 
