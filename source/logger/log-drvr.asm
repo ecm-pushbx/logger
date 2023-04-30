@@ -191,10 +191,14 @@ DevInt10:
 	jmp		far [cs:.NextHandler]
 
 ; -----------------------------------------------------------------------------
-; Far call to driver function dispatcher.
+; Application far call driver function dispatcher interface
 ; -----------------------------------------------------------------------------
 
 Dispatcher:
+	call		.Handler
+	retf
+
+.Handler:
 	push		ds
 	push		cs
 	pop		ds
@@ -224,7 +228,7 @@ Dispatcher:
 	pop		si
 
 	pop		ds
-	retf
+	ret
 
 .FunTable:
 	dw		.Status		; fn 0x10
@@ -240,7 +244,7 @@ Dispatcher:
 	; fn 0x10, returns current status in cx, dx:di->Size info record
 	mov		cx, [Header(Status)]
 	mov		dx, cs
-	mov		di, TDriverHeader.XMS.Size ;
+	mov		di, TDriverHeader.XMS.Size
 	ret
 
 .SetEnabled:
@@ -253,6 +257,7 @@ Dispatcher:
 	test		bl, bl
 	jnz		.UpdateLocation
 	ret
+
 .UpdateLocation:
 	push		ax
 	push		ds

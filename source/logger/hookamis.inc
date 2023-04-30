@@ -128,7 +128,8 @@ PROC_DriverInterruptHook:
 	je		%%InterruptList
 	cmp		al, 0x06
 	je		%%GetDriverInfo
-	jmp		Dispatcher	; 0x05, 0x07+
+	call		Dispatcher.Handler ; 0x05, 0x07+, however < 0x10, is invalid
+	iret
 
 %%Ignore:
 	jmp		far [cs:.NextHandler]
