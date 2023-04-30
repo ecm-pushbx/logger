@@ -145,11 +145,14 @@ struc TDriverHeader
 
 
 	.XMS.Driver:	resd 1			; Pointer to XMS driver
-	.XMS.Size:	resw 1			; Size in KB to allocate
 	.XMS.Head:	resd 1			; next buffer write position
 	.XMS.Tail:	resd 1			; first buffer read position
-	.XMS.Count:	resd 1			; bytes in buffer
+
+	; DO NOT REORDER Size, Count, Max! Driver returns a pointer to these
+	; values in the dispatcher status request function.
+	.XMS.Size:	resw 1			; Size in KB to allocate
 	.XMS.Max:	resd 1			; size of buffer in bytes
+	.XMS.Count:	resd 1			; total bytes written to buffer
 
 	.XFR.Count:	resd 1			; byte count { must be even }
 	.XFR.SrcHandle:	resw 1			; 0 = conventional memory

@@ -66,15 +66,18 @@ function die () {
 function build () {
 
 	local s="${1}"
+	local o="${2}"
 	local e="$(upperCase ${2##*.})"
+	[[ "${e}" == '' ]] && e="COM"
 	local n="${s##*/}"
 	n="${n%.*}"
-	local o="$(upperCase ${2})"
-	shift 2
+	[[ "${o}" == '' ]] && o="${n}.${e}"
+	local o="$(upperCase ${o})"
+	[[ "${2}" == '' ]] && shift 1 || shift 2
 	echo "Building ${n}......${e}"
 	[[ -f "${o}" ]] && rm "${o}"
-	nasm -s "${s}" -ILIBS/ -fbin ${OPTIMIZE} ${@} -o "${o}" || die "${n}"
-	if [ ! -f  "${o}" ] ; then
+	nasm -s "${s}" -fbin ${OPTIMIZE} ${@} -o "${o}" || die "${n}"
+	if [[ ! -f  "${o}" ]] ; then
 		die "${n}"
 	fi
 	if [[ "${e}" != 'BIN' ]] ; then
@@ -100,16 +103,23 @@ function build_main () {
 
 	echo "WARNING: NASM 2.15.05, or later is recommended for compilation."
 
-	if [[ "${1}" == 'single' ]] ; then
-		rm ../../BIN/*.SYS >/dev/null 2>&1
-		rm *.SYS >/dev/null 2>&1
-		build "log-drvr.asm" 'logger.bin' -DSINGLE_BINARY
-		build "log-intf.asm" 'logger.com' -DSINGLE_BINARY
-	else
-		rm *.BIN >/dev/null 2>&1
-		build "log-drvr.asm" 'logger.sys'
-		build "log-intf.asm" 'logger.com'
-	fi
+	# driver only binary
+	rm ../../BIN/*.SYS >/dev/null 2>&1
+	rm *.SYS *.BIN *.COM >/dev/null 2>&1
+	build "log-drvr.asm" 'logger.sys'
+#	build "log-intf.asm" 'logutils.com'
+	mv LOGGER.* ../../doc/logger/driver
+
+	# combined driver/interface binary
+	rm ../../BIN/*.SYS >/dev/null 2>&1
+	rm *.SYS *.BIN *.COM >/dev/null 2>&1
+	build "log-drvr.asm" 'logger.bin' -DSINGLE_BINARY
+	build "log-intf.asm" 'logger.com' -DSINGLE_BINARY
+
+	pushd ../../doc/logger/devel >/dev/null 2>&1
+	build "log-clr.asm"
+	build "log-stat.asm"
+	popd >/dev/null 2>&1
 
 	echo "$(wct -l) lines of source code ($(( $(wct -c) / 1024 )) kbytes)"
 }

@@ -82,11 +82,12 @@ istruc TDriverHeader
 	at .Status,		dw 0		; Device driver Status
 
 	at .XMS.Driver,		dd -1		; Pointer to XMS driver
-	at .XMS.Size,		dw 32		; Default KB size to allocate
 	at .XMS.Head,		dd 0		; next buffer write position
 	at .XMS.Tail,		dd -1		; first buffer read position
-	at .XMS.Count,		dd 0		; bytes in buffer
+
+	at .XMS.Size,		dw 32		; Default KB size to allocate
 	at .XMS.Max,		dd 0 		; size of buffer in bytes
+	at .XMS.Count,		dd 0		; bytes written to buffer
 
 						; XMS transfer Buffer
 	at .XFR.Count,		dd 0		; byte count { must be even }
@@ -233,12 +234,14 @@ Dispatcher:
 	dw		.Flush		; fn 0x12
 	dw		.Clear		; fn 0x13
 	dw		.AppendChar	; fn 0x14
-;	dw		.AppendText	; needs 24 bytes, maybe I'll include it.
+	dw		.AppendText	; needs 24 bytes, maybe I'll include it.
 .FunEnd:
 
 .Status:
-	; fn 0x10, returns current status in bx
-	mov		bx, [Header(Status)]
+	; fn 0x10, returns current status in cx, dx:bx->Size info record
+	mov		cx, [Header(Status)]
+	mov		dx, cs
+	mov		bp, Header(XMS.Size) ; becomes BX on return
 	ret
 
 .SetEnabled:
@@ -247,7 +250,7 @@ Dispatcher:
 	and		bl, sfEnabled
 	and		[Header(Status)], byte ~sfEnabled
 	or		[Header(Status)], bl
-	ret
+	; ret
 
 .Flush:
 	; fn 0x12
@@ -259,9 +262,10 @@ Dispatcher:
 	push		ax
 	and		[Header(Status)], byte ~sfLogFull
 	xor		ax, ax
-	mov		[Header(XMS.Count)], ax	; 0
+	mov		[Header(XFR.Count)], ax		; 0
+	mov		[Header(XMS.Count)], ax		; 0
 	mov		[Header(XMS.Count)+2], ax	; 0
-	mov		[Header(XMS.Head)], ax	; 0
+	mov		[Header(XMS.Head)], ax		; 0
 	mov		[Header(XMS.Head)+2], ax	; 0
 	%ifdef  DEBUG_DATA_SIZE
 		push		cx
@@ -289,22 +293,22 @@ Dispatcher:
 	pop		ax
 	ret
 
-;.AppendText:
-;	; fn 0x15; es:di->AsciiZ, bh=attribute
-;	push		ax
-;	push		di
-;	mov		bl, bh
-;.AppendTextLoop:
-;	mov		al, [es:di]
-;	test		al, al
-;	jz		.AppendTextDone
-;	inc		di
-;	call		AppendBuffer
-;	jmp		.AppendTextLoop
-;.AppendTextDone:
-;	pop		di
-;	pop		ax
-;	ret
+.AppendText:
+	; fn 0x15; es:di->AsciiZ, bh=attribute
+	push		ax
+	push		di
+	mov		bl, bh
+.AppendTextLoop:
+	mov		al, [es:di]
+	test		al, al
+	jz		.AppendTextDone
+	inc		di
+	call		AppendBuffer
+	jmp		.AppendTextLoop
+.AppendTextDone:
+	pop		di
+	pop		ax
+	ret
 
 ; -----------------------------------------------------------------------------
 
