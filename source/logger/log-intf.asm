@@ -206,7 +206,7 @@ ExitNoError:
 ;DriverStatus:
 ;	push		es
 ;	mov		al, 0x10		; return current status in CX
-						; DX:BX->Size info record
+						; DX:DI->Size info record
 ;	mov		es, [DriverSeg]
 ;	call		far [es:Header(Dispatch)]
 ;	pop		es

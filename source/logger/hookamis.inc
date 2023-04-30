@@ -117,23 +117,22 @@ PROC_DriverInterruptHook:
 	IISP
 	cmp		ah, 0
 .Multiplex_ID: 		equ $ - 1
-	jne		%%Ignored
+	jne		%%Ignore
 
 	test		al, al
 	jz		%%InstallCheck
 	cmp		al, 0x02
 	je		%%Uninstall
-	jb		%%PrivateEntry
+	jb		%%PrivateEntry	 ; 0x01
 	cmp		al, 0x04
 	je		%%InterruptList
 	cmp		al, 0x06
 	je		%%GetDriverInfo
-	jmp		Dispatcher
+	jmp		Dispatcher	; 0x05, 0x07+
 
-%%GetDriverInfo:
-	xor		ah, ah 		; loaded in config sys, cannot remove
-	xor		bx, bx		; dx:bx -> first driver header
-	jmp		%%Respond	; ah != 0
+%%Ignore:
+	jmp		far [cs:.NextHandler]
+
 
 %%InterruptList:
 	mov		dx, cs
@@ -147,16 +146,20 @@ PROC_DriverInterruptHook:
 %%PrivateEntry:
 	mov		bx, [cs:TDriverHeader.Dispatch]
 	jmp		%%Respond
+
+%%GetDriverInfo:
+	xor		ah, ah 		; loaded in config sys, cannot remove
+	xor		bx, bx		; dx:bx -> first driver header
+	jmp		%%Respond	; ah != 0
+
 %%InstallCheck:
 	mov		cx, VersionID
 	mov		di, DATA_AMIS_Signature
+
 %%Respond:
 	mov		dx, cs
 	mov		al, 0xff
 	iret
-
-%%Ignored:
-	jmp		far [cs:.NextHandler]
 
 %%HookedList:
 	db		0x10

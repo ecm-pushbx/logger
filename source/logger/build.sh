@@ -118,6 +118,9 @@ function build_main () {
 
 	pushd ../../doc/logger/devel >/dev/null 2>&1
 	build "log-clr.asm"
+	build "log-on.asm"
+	build "log-off.asm"
+	build "log-msg.asm"
 	build "log-stat.asm"
 	popd >/dev/null 2>&1
 

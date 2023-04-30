@@ -199,9 +199,10 @@ Dispatcher:
 	push		cs
 	pop		ds
 
-	push		bp		; driver does not use BP except to
-	mov		bp, bx		; preserve bx for dispatcher calls
+	push		si		; not using SI for dispatcher calls
+	mov		si, bx
 
+	xor		bh, bh
 	mov		bl, al
 	sub		bl, 0x10	; functions start at AL=0x10 for
 					; simpler compatibility with AMIS.
@@ -214,16 +215,13 @@ Dispatcher:
 	xor		al,al
 	jmp		.Finished
 .ValidFun:
-	xor		bh, bh
-	add		bx, bx
-	clc
 	mov		al,0xff
-	pushf
-	call		near [cs:bx+.FunTable]
-	popf
+	add		bx, bx		; bx = bx * 2
+	call		near [bx+.FunTable]
+	clc
 .Finished:
-	mov		bx, bp
-	pop		bp
+	mov		bx, si
+	pop		si
 
 	pop		ds
 	retf
@@ -235,22 +233,37 @@ Dispatcher:
 	dw		.Clear		; fn 0x13
 	dw		.AppendChar	; fn 0x14
 	dw		.AppendText	; needs 24 bytes, maybe I'll include it.
+
 .FunEnd:
 
 .Status:
-	; fn 0x10, returns current status in cx, dx:bx->Size info record
+	; fn 0x10, returns current status in cx, dx:di->Size info record
 	mov		cx, [Header(Status)]
 	mov		dx, cs
-	mov		bp, Header(XMS.Size) ; becomes BX on return
+	mov		di, TDriverHeader.XMS.Size ;
 	ret
 
 .SetEnabled:
 	; fn 0x11, BL=0 off/1 on
-	mov		bx, bp
+	call		FlushBuffer
+	mov		bx, si
 	and		bl, sfEnabled
 	and		[Header(Status)], byte ~sfEnabled
 	or		[Header(Status)], bl
-	; ret
+	test		bl, bl
+	jnz		.UpdateLocation
+	ret
+.UpdateLocation:
+	push		ax
+	push		ds
+	mov		ax, 0x0040
+	mov		ds, ax
+	mov		al, [0x0050 + 1] 	; page 0 cursor row position
+	pop		ds
+	xor		ah, ah
+	mov		[Header(RowSkip)], ax
+	pop		ax
+	ret
 
 .Flush:
 	; fn 0x12
@@ -286,7 +299,7 @@ Dispatcher:
 .AppendChar:
 	; fn 0x14, BH = Attribute, BL = Character
 	push		ax
-	mov		bx, bp
+	mov		bx, si
 	mov		al, bl
 	mov		bl, bh
 	call		AppendBuffer
@@ -297,6 +310,7 @@ Dispatcher:
 	; fn 0x15; es:di->AsciiZ, bh=attribute
 	push		ax
 	push		di
+	mov		bx, si
 	mov		bl, bh
 .AppendTextLoop:
 	mov		al, [es:di]
