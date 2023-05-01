@@ -69,19 +69,33 @@ istruc TDriverHeader
 		at .ChainNext, 	dd -1		; pointer to next device driver
 	%endif
 	at .Attributes,	dw 0x8000		; character device
-	at .Strategy,	dw Initial.Strategy	; set tREQUEST block pointer
-	at .Entry,	dw Initial.Routine	; driver interrupt call
+	at .Strategy,	dw .stratentry_inicomp	; set tREQUEST block pointer
+	at .Entry,	dw .intentry_inicomp	; driver interrupt call
 	at .Name,	DeviceDriverID		; 8 character driver name
 
 ; -----------------------------------------------------------------------------
 
-	at .Dispatch,		dd Dispatcher	; far call to driver functions
+		; These entrypoints must be at this location
+		;  to support the use of the inicomp
+		;  compression stage by ecm. They're expected
+		;  right after the device header and both 4
+		;  bytes long. The device driver can modify
+		;  the device header later to re-use this space.
+.stratentry_inicomp:
+jmp Initial.Strategy
+times 4 - ($ - .stratentry_inicomp) nop
+
+.intentry_inicomp:
+jmp Initial.Routine
+times 4 - ($ - .intentry_inicomp) nop
+
+;	at .Dispatch,		dd Dispatcher	; far call to driver functions
 
 ; -----------------------------------------------------------------------------
 
-	at .Status,		dw 0		; Device driver Status
+;	at .Status,		dw 0		; Device driver Status
 
-	at .XMS.Driver,		dd -1		; Pointer to XMS driver
+;	at .XMS.Driver,		dd -1		; Pointer to XMS driver
 	at .XMS.Head,		dd 0		; next buffer write position
 	at .XMS.Tail,		dd -1		; first buffer read position
 
@@ -1009,6 +1023,12 @@ Initialize:
 
 	mov		[Header(Strategy)], word Driver.Strategy
 	mov		[Header(Entry)], word Driver.Routine
+
+	mov word [Header(Dispatch)], Dispatcher
+	and word [Header(Dispatch) + 2], 0
+	and word [Header(Status)], 0
+	or word [Header(XMS.Driver)], -1
+	or word [Header(XMS.Driver) + 2], -1
 
 	%ifdef SINGLE_BINARY
 		mov		ax, -1
